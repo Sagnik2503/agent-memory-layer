@@ -10,12 +10,9 @@ load_dotenv()
 
 class LLMClient:
     def __init__(self):
-        self.client = instructor.from_openai(
-            OpenAI(
-                base_url="https://integrate.api.nvidia.com/v1",
-                api_key=os.environ["NVIDIA_API_KEY"],
-            ),
-            model="nvidia/nemotron-3.5-lightning-30b-a3b",
+        self.client = instructor.from_provider(
+            "groq/openai/gpt-oss-20b",
+            api_key=os.environ["GROQ_API_KEY"],
         )
 
     def classify_intent(self, message: str) -> str:
