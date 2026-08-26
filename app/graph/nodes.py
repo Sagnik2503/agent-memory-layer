@@ -10,7 +10,9 @@ def router_node(state: AgentState) -> dict:
     message = state["user_message"]
 
     try:
+        print("Classifying intent...\n\n")
         intent = llm_client.classify_intent(message)
+        print(f"intent: {intent}\n\n")
         return {"intent": intent}
     except Exception as e:
         # Fallback: simple keyword matching
