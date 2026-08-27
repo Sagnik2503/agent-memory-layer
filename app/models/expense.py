@@ -14,3 +14,8 @@ class ValidationResult(BaseModel):
     is_valid: bool
     errors: list[str]
     missing_fields: list[str]
+
+class ClarityCheck(BaseModel):
+    is_clear: bool
+    missing_fields: list[str]
+    clarification_question: str

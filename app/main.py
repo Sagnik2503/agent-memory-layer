@@ -18,16 +18,22 @@ async def health():
 
 @app.post("/chat")
 async def chat(request: ChatRequest) -> ChatResponse:
-    # Initialize state
+    history = [msg.model_dump() for msg in request.clarification_history] if request.clarification_history else []
     initial_state = {
         "user_message": request.message,
         "intent": "other",
         "expense": None,
         "validation_result": None,
         "response": "",
+        "clarification_history": history,
+        "clarification_rounds": request.clarification_rounds,
     }
 
-    # Run the graph
     result = expense_graph.invoke(initial_state)
 
-    return ChatResponse(response=result["response"])
+    return ChatResponse(
+        response=result["response"],
+        needs_clarification=result.get("intent") == "needs_clarification",
+        clarification_history=result.get("clarification_history", []),
+        clarification_rounds=result.get("clarification_rounds", 0),
+    )

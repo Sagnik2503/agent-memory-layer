@@ -6,31 +6,70 @@ llm_client = LLMClient()
 
 
 def router_node(state: AgentState) -> dict:
-    """Classify user message as 'expense' or 'other'"""
+    """Classify user message as expense or other."""
     message = state["user_message"]
 
     try:
-        print("Classifying intent...\n\n")
+        print("Classifying intent...")
         intent = llm_client.classify_intent(message)
-        print(f"intent: {intent}\n\n")
+        print(f"intent: {intent}")
         return {"intent": intent}
+
     except Exception as e:
-        # Fallback: simple keyword matching
-        expense_keywords = ["spent", "paid", "bought", "cost", "rupees", "₹"]
-        if any(keyword in message.lower() for keyword in expense_keywords):
-            return {"intent": "expense"}
+        print(f"Router error: {e}")
         return {"intent": "other"}
+
+
+def clarification_node(state: AgentState) -> dict:
+    """Check if expense has enough info, ask follow-up if not."""
+    message = state["user_message"]
+    history = state.get("clarification_history", [])
+    rounds = state.get("clarification_rounds", 0)
+
+    if rounds >= 3:
+        print("Max clarification rounds reached, falling back to extraction")
+        return {"intent": "expense"}
+
+    try:
+        print("Checking clarity...")
+        clarity = llm_client.check_clarity(message, history)
+        print(f"clarity check: {clarity}")
+
+        if clarity["is_clear"]:
+            return {"intent": "expense"}
+
+        new_history = history + [{"user": message, "assistant": None}]
+        return {
+            "intent": "needs_clarification",
+            "response": clarity["clarification_question"],
+            "clarification_history": new_history,
+            "clarification_rounds": rounds + 1,
+        }
+
+    except Exception as e:
+        print(f"Clarity check error: {e}")
+        return {"intent": "expense"}
 
 
 def expense_extractor_node(state: AgentState) -> dict:
     """Extract structured expense from natural language"""
     message = state["user_message"]
-    print("INPUT TO EXTRACTOR:", message)
+    history = state.get("clarification_history", [])
+
+    # Build full context from clarification history
+    full_message = message
+    if history:
+        context_parts = [f"Original: {h['user']}" for h in history if h.get('user')]
+        context_parts.append(f"Latest: {message}")
+        full_message = " | ".join(context_parts)
+
+    print(f"INPUT TO EXTRACTOR: {full_message}")
     try:
-        expense = llm_client.extract_expense(message)
-        print("EXTRACTOR RESULT:", expense)
-        return {"expense": expense}
+        expense = llm_client.extract_expense(full_message)
+        print(f"EXTRACTOR RESULT: {expense}")
+        return {"expense": expense, "clarification_history": []}
     except Exception as e:
+        print(f"Extraction error: {e}")
         return {"expense": None}
 
 
@@ -50,17 +89,14 @@ def validate_expense_node(state: AgentState) -> dict:
     errors = []
     missing_fields = []
 
-    # Validate amount
     if not expense.amount or expense.amount <= 0:
         errors.append("Amount must be greater than 0")
         missing_fields.append("amount")
 
-    # Validate currency
     if not expense.currency:
         errors.append("Currency is required")
         missing_fields.append("currency")
 
-    # Validate category
     if not expense.category:
         errors.append("Category is required")
         missing_fields.append("category")
@@ -77,6 +113,11 @@ def response_node(state: AgentState) -> dict:
     intent = state.get("intent")
     expense = state.get("expense")
     validation_result = state.get("validation_result")
+    existing_response = state.get("response", "")
+
+    # If we already have a clarification response, just pass it through
+    if intent == "needs_clarification" and existing_response:
+        return {}
 
     if intent == "other":
         return {"response": "I'm ready to help you track and understand your spending."}
