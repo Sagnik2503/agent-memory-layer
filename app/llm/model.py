@@ -1,7 +1,9 @@
 import os
 import instructor
 from dotenv import load_dotenv
-from app.models.expense import Expense, ClarityCheck
+from app.graph.state import Expense, IntentClassification
+from langchain_core.messages import AnyMessage
+
 from datetime import date
 
 load_dotenv()
@@ -15,7 +17,7 @@ class LLMClient:
         )
         self.model = "groq/openai/gpt-oss-20b"
 
-    def classify_intent(self, message: str) -> str:
+    def classify_intent(self, message: str) -> IntentClassification:
         """Classify user message as 'expense' or 'other'"""
         prompt = f"""
         Classify this user message as either "expense" or "other".
@@ -23,57 +25,43 @@ class LLMClient:
         Other messages are questions, greetings, or non-expense requests.
 
         User message: {message}
-
-        Respond with ONLY the classification: "expense" or "other"
         """
 
         result = self.client.create(
             messages=[{"role": "user", "content": prompt}],
-            response_model=str,
+            response_model=IntentClassification,
         )
 
-        return "expense" if "expense" in result.lower() else "other"
+        return result
 
-    def check_clarity(self, message: str, history: list[dict] = None) -> dict:
-        """Check if the message has enough info to extract an expense."""
-        history_text = ""
-        if history:
-            history_text = "\nPrevious conversation:\n" + "\n".join(
-                f"User: {h['user']}"
-                + (f"\nAssistant: {h['assistant']}" if h.get("assistant") else "")
-                for h in history
-            )
+    def merge_clarification(
+        self,
+        expense: Expense,
+        missing_field: str,
+        user_answer: str,
+    ) -> Expense:
 
         prompt = f"""
-        You are checking if a user message contains enough information to extract an expense.
-        Required fields: amount (how much was spent), currency (e.g. INR, USD), and category (e.g. food, transport).
-        Optional fields: merchant, date, subcategory, description.
+        Update the existing expense using the user's clarification.
 
-        Analyze the user message and determine:
-        1. Is there enough information to extract at least amount, currency, and category?
-        2. What fields are missing?
-        3. What follow-up question should be asked to get the missing info?
+        Existing expense:
+        {expense.model_dump()}
 
-        Be smart about inference:
-        - If someone says "rupees" or "₹", currency is INR
-        - If someone says "dollars" or "$", currency is USD
-        - If someone mentions a restaurant/food place, category is likely "food"
-        - If someone mentions a taxi/uber/bus, category is likely "transport"
-        - If the amount is mentioned, even without explicit currency, it may be inferable from context
-        {history_text}
-        User message: {message}
+        Missing field:
+        {missing_field}
+
+        User's clarification:
+        {user_answer}
+
+        Update only the missing field(s) that can be confidently
+        extracted from the user's clarification. Preserve all existing
+        values.
         """
 
-        result = self.client.create(
+        return self.client.create(
             messages=[{"role": "user", "content": prompt}],
-            response_model=ClarityCheck,
+            response_model=Expense,
         )
-
-        return {
-            "is_clear": result.is_clear,
-            "missing_fields": result.missing_fields,
-            "clarification_question": result.clarification_question,
-        }
 
     def extract_expense(self, message: str) -> Expense:
         """Extract structured expense from natural language using instructor"""

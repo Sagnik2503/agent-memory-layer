@@ -1,53 +1,89 @@
-from langgraph.graph import StateGraph, END
+from langgraph.graph import StateGraph, START, END
+from langgraph.checkpoint.memory import MemorySaver
+
 from app.graph.state import AgentState
 from app.graph.nodes import (
     router_node,
-    clarification_node,
     expense_extractor_node,
     validate_expense_node,
+    clarification_node,
+    merge_clarification_node,
     response_node,
 )
 
 
+def route_after_router(state: AgentState):
+    return state["intent"]
+
+
+def route_after_validation(state: AgentState):
+    validation = state["validation_result"]
+
+    if validation.is_valid:
+        return "response"
+
+    if validation.missing_fields:
+        return "clarification"
+
+    return "response"
+
+
 def create_expense_graph():
-    """Create the expense tracker LangGraph"""
     graph = StateGraph(AgentState)
 
-    # Add nodes
+    # Nodes
     graph.add_node("router", router_node)
-    graph.add_node("clarification", clarification_node)
     graph.add_node("expense_extractor", expense_extractor_node)
     graph.add_node("validate_expense", validate_expense_node)
+    graph.add_node("clarification", clarification_node)
+    graph.add_node("merge_clarification", merge_clarification_node)
     graph.add_node("response", response_node)
 
-    # Set entry point
-    graph.set_entry_point("router")
+    # Start
+    graph.add_edge(START, "router")
 
-    # Router routes based on intent
+    # Router
     graph.add_conditional_edges(
         "router",
-        lambda state: state["intent"],
+        route_after_router,
         {
-            "expense": "clarification",
+            "expense": "expense_extractor",
             "other": "response",
         },
     )
 
-    # Clarification routes based on clarity check
+    # Expense extraction
+    graph.add_edge(
+        "expense_extractor",
+        "validate_expense",
+    )
+
+    # Validation
     graph.add_conditional_edges(
-        "clarification",
-        lambda state: state["intent"],
+        "validate_expense",
+        route_after_validation,
         {
-            "expense": "expense_extractor",
-            "needs_clarification": "response",
+            "clarification": "clarification",
+            "response": "response",
         },
     )
 
-    # Expense path: extract -> validate -> respond
-    graph.add_edge("expense_extractor", "validate_expense")
-    graph.add_edge("validate_expense", "response")
+    # Clarification
+    graph.add_edge(
+        "clarification",
+        "merge_clarification",
+    )
 
-    # All paths end at END after response
+    # Re-validate after clarification
+    graph.add_edge(
+        "merge_clarification",
+        "validate_expense",
+    )
+
+    # Response
     graph.add_edge("response", END)
 
-    return graph.compile()
+    # Checkpointer
+    checkpointer = MemorySaver()
+
+    return graph.compile(checkpointer=checkpointer)

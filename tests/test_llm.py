@@ -1,6 +1,6 @@
 import pytest
 from app.llm.model import LLMClient
-from app.models.expense import Expense
+from app.graph.state import Expense
 
 def test_llm_client_initialization():
     client = LLMClient()

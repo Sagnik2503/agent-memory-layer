@@ -1,75 +1,41 @@
-from app.graph.state import AgentState
+from app.graph.state import AgentState, Expense, ValidationResult
 from app.llm.model import LLMClient
-from app.models.expense import Expense, ValidationResult
+from langgraph.types import interrupt
+from langchain_core.messages import HumanMessage
 
 llm_client = LLMClient()
 
 
 def router_node(state: AgentState) -> dict:
     """Classify user message as expense or other."""
-    message = state["user_message"]
+    user_message = state["messages"][-1].content
 
     try:
         print("Classifying intent...")
-        intent = llm_client.classify_intent(message)
-        print(f"intent: {intent}")
-        return {"intent": intent}
+        result = llm_client.classify_intent(user_message)
+        print(f"intent: {result.intent}, confidence: {result.confidence}")
+        return {"intent": result.intent}
 
     except Exception as e:
         print(f"Router error: {e}")
         return {"intent": "other"}
 
 
-def clarification_node(state: AgentState) -> dict:
-    """Check if expense has enough info, ask follow-up if not."""
-    message = state["user_message"]
-    history = state.get("clarification_history", [])
-    rounds = state.get("clarification_rounds", 0)
-
-    if rounds >= 3:
-        print("Max clarification rounds reached, falling back to extraction")
-        return {"intent": "expense"}
-
-    try:
-        print("Checking clarity...")
-        clarity = llm_client.check_clarity(message, history)
-        print(f"clarity check: {clarity}")
-
-        if clarity["is_clear"]:
-            return {"intent": "expense"}
-
-        new_history = history + [{"user": message, "assistant": None}]
-        return {
-            "intent": "needs_clarification",
-            "response": clarity["clarification_question"],
-            "clarification_history": new_history,
-            "clarification_rounds": rounds + 1,
-        }
-
-    except Exception as e:
-        print(f"Clarity check error: {e}")
-        return {"intent": "expense"}
-
-
 def expense_extractor_node(state: AgentState) -> dict:
     """Extract structured expense from natural language"""
-    message = state["user_message"]
-    history = state.get("clarification_history", [])
+    user_message = state["messages"][-1].content
 
-    # Build full context from clarification history
-    full_message = message
-    if history:
-        context_parts = [f"Original: {h['user']}" for h in history if h.get('user')]
-        context_parts.append(f"Latest: {message}")
-        full_message = " | ".join(context_parts)
+    print(f"INPUT TO EXTRACTOR: {user_message}")
 
-    print(f"INPUT TO EXTRACTOR: {full_message}")
     try:
-        expense = llm_client.extract_expense(full_message)
+        expense = llm_client.extract_expense(user_message)
         print(f"EXTRACTOR RESULT: {expense}")
-        return {"expense": expense, "clarification_history": []}
+
+        return {"expense": expense}
+
     except Exception as e:
         print(f"Extraction error: {e}")
+
         return {"expense": None}
 
 
@@ -77,7 +43,7 @@ def validate_expense_node(state: AgentState) -> dict:
     """Validate extracted expense data"""
     expense = state.get("expense")
 
-    if not expense:
+    if expense is None:
         return {
             "validation_result": ValidationResult(
                 is_valid=False,
@@ -86,62 +52,139 @@ def validate_expense_node(state: AgentState) -> dict:
             )
         }
 
-    errors = []
-    missing_fields = []
+    errors: list[str] = []
+    missing_fields: list[str] = []
 
-    if not expense.amount or expense.amount <= 0:
-        errors.append("Amount must be greater than 0")
+    # Amount
+    if expense.amount is None:
         missing_fields.append("amount")
+    elif expense.amount <= 0:
+        errors.append("Amount must be greater than 0")
 
+    # currenct
     if not expense.currency:
         errors.append("Currency is required")
         missing_fields.append("currency")
 
+    # cateogry
     if not expense.category:
         errors.append("Category is required")
         missing_fields.append("category")
 
+    is_valid = not errors and not missing_fields
+
     return {
         "validation_result": ValidationResult(
-            is_valid=len(errors) == 0, errors=errors, missing_fields=missing_fields
+            is_valid=is_valid,
+            errors=errors,
+            missing_fields=missing_fields,
         )
     }
+
+
+def route_after_validation(state: AgentState) -> AgentState:
+    """routing logic after validation has been done for clarification"""
+
+    validation_results = state["validation_result"]
+
+    if validation_results["is_valid"]:
+        return "save"
+    if validation_results.missing_fields:
+        return "clarification"
+    return "response"
+
+
+def clarification_node(state: AgentState) -> dict:
+    """Check if expense has enough info, ask follow-up if not."""
+
+    rounds = state.get("clarification_rounds", 0)
+    validation_results = state["validation_result"]
+
+    if validation_results is None:
+        return {"response": "I could not validate the expense"}
+
+    if rounds >= 3:
+        return {
+            "response": (
+                "I'm missing some information to complete this expense. "
+                "Please provide the expense with all the required details."
+            )
+        }
+
+    missing_fields = validation_results.missing_fields
+
+    if not missing_fields:
+        return {}
+
+    field = missing_fields[0]
+
+    questions = {
+        "amount": "How much did you spend?",
+        "currency": "What currency was the expense in?",
+        "category": "What category should I use for this expense?",
+        "merchant": "Where did you make this purchase?",
+        "date": "What date was this expense?",
+    }
+
+    question = questions.get(field, f"Could you provide the {field}?")
+
+    print(f"Clarification needed for: {field}")
+    print(f"Question: {question}")
+
+    answer = interrupt(question)
+
+    answer = interrupt(question)
+
+    return {
+        "messages": [HumanMessage(content=answer)],
+        "clarification_rounds": rounds + 1,
+    }
+
+
+def merge_clarification_node(state: AgentState) -> dict:
+    expense = state["expense"]
+    validation = state["validation_result"]
+
+    if not expense or not validation:
+        return {}
+
+    answer = state["messages"][-1].content
+    field = validation.missing_fields[0]
+
+    try:
+        updated_expense = llm_client.merge_clarification(
+            expense=expense,
+            missing_field=field,
+            user_answer=answer,
+        )
+
+        return {"expense": updated_expense}
+
+    except Exception as e:
+        print(f"Clarification merge error: {e}")
+        return {}
 
 
 def response_node(state: AgentState) -> dict:
     """Generate natural language response based on state"""
     intent = state.get("intent")
     expense = state.get("expense")
+
     validation_result = state.get("validation_result")
     existing_response = state.get("response", "")
-
-    # If we already have a clarification response, just pass it through
-    if intent == "needs_clarification" and existing_response:
-        return {}
 
     if intent == "other":
         return {"response": "I'm ready to help you track and understand your spending."}
 
     if intent == "expense":
         if not expense:
-            return {
-                "response": "I couldn't extract expense details. Could you provide more information?"
-            }
+            return {"response": "I couldn't extract expense details."}
 
-        if validation_result and not validation_result.is_valid:
-            missing = (
-                validation_result.missing_fields[0]
-                if validation_result.missing_fields
-                else "details"
-            )
-            return {
-                "response": f"How much did you spend on {expense.description or 'this'}?"
-            }
+        merchant = f" at {expense.merchant}" if expense.merchant else ""
+        category = f" under {expense.category}" if expense.category else ""
 
-        merchant_part = f" at {expense.merchant}" if expense.merchant else ""
-        category_part = f" under {expense.category}" if expense.category else ""
         return {
-            "response": f"Got it — ₹{expense.amount} spent{merchant_part}{category_part}."
+            "response": (f"Got it — ₹{expense.amount} spent" f"{merchant}{category}.")
         }
 
     return {"response": "I'm not sure how to help with that."}

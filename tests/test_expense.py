@@ -1,5 +1,5 @@
 import pytest
-from app.models.expense import Expense, ValidationResult
+from app.graph.state import Expense, ValidationResult
 
 def test_expense_model_valid():
     expense = Expense(

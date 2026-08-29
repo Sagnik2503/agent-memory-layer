@@ -1,6 +1,8 @@
 from fastapi import FastAPI
-from app.models.chat import ChatRequest, ChatResponse
+from app.graph.state import ChatRequest, ChatResponse
+from langchain_core.messages import HumanMessage
 from app.graph.graph import create_expense_graph
+from langgraph.types import Command
 
 app = FastAPI()
 expense_graph = create_expense_graph()
@@ -13,27 +15,38 @@ def root():
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    return {"status": "Application is running"}
 
 
-@app.post("/chat")
+@app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest) -> ChatResponse:
-    history = [msg.model_dump() for msg in request.clarification_history] if request.clarification_history else []
-    initial_state = {
-        "user_message": request.message,
-        "intent": "other",
-        "expense": None,
-        "validation_result": None,
-        "response": "",
-        "clarification_history": history,
-        "clarification_rounds": request.clarification_rounds,
-    }
+    config = {"configurable": {"thread_id": request.thread_id}}
 
-    result = expense_graph.invoke(initial_state)
+    # check if convo is already paused
+    state_snapshot = expense_graph.get_state(config)
 
-    return ChatResponse(
-        response=result["response"],
-        needs_clarification=result.get("intent") == "needs_clarification",
-        clarification_history=result.get("clarification_history", []),
-        clarification_rounds=result.get("clarification_rounds", 0),
-    )
+    if state_snapshot.next:
+        # graph is paused
+        expense_graph.invoke(Command(resume=request.message), config=config)
+
+    else:
+        initial_state = {
+            "messages": [HumanMessage(content=request.message)],
+            "intent": "other",
+            "expense": None,
+            "validation_result": None,
+            "clarification_rounds": 0,
+            "response": "",
+        }
+
+        expense_graph.invoke(initial_state, config=config)
+
+        # Always read the latest checkpointed state
+    state_snapshot = expense_graph.get_state(config)
+    if state_snapshot.next:
+        # Graph is waiting for clarification
+        question = state_snapshot.tasks[0].interrupts[0].value
+
+        return ChatResponse(response=question)
+
+    return ChatResponse(response=state_snapshot.values.get("response", ""))

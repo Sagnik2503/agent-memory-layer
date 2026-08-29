@@ -1,7 +1,6 @@
 import pytest
 from app.graph.nodes import router_node, expense_extractor_node, validate_expense_node, response_node
-from app.graph.state import AgentState
-from app.models.expense import Expense, ValidationResult
+from app.graph.state import AgentState, Expense, ValidationResult
 
 def test_router_node_expense():
     state: AgentState = {
