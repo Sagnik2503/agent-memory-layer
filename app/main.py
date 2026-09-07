@@ -3,8 +3,17 @@ from app.graph.state import ChatRequest, ChatResponse
 from langchain_core.messages import HumanMessage
 from app.graph.graph import create_expense_graph
 from langgraph.types import Command
+from app.db.database import Base, engine
+from app.db.models import ExpenseDB
+
+
+def init_db():
+    Base.metadata.create_all(bind=engine)
+
 
 app = FastAPI()
+
+init_db()
 expense_graph = create_expense_graph()
 
 

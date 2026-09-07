@@ -9,6 +9,7 @@ from app.graph.nodes import (
     clarification_node,
     merge_clarification_node,
     response_node,
+    save_expense_node,
 )
 
 
@@ -38,6 +39,7 @@ def create_expense_graph():
     graph.add_node("clarification", clarification_node)
     graph.add_node("merge_clarification", merge_clarification_node)
     graph.add_node("response", response_node)
+    graph.add_node("save_expense", save_expense_node)
 
     # Start
     graph.add_edge(START, "router")
@@ -79,7 +81,8 @@ def create_expense_graph():
         "merge_clarification",
         "validate_expense",
     )
-
+    graph.add_edge("validate_expense", "save_expense")
+    graph.add_edge("save_expense", "response")
     # Response
     graph.add_edge("response", END)
 

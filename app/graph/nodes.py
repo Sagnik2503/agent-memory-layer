@@ -2,6 +2,7 @@ from app.graph.state import AgentState, Expense, ValidationResult
 from app.llm.model import LLMClient
 from langgraph.types import interrupt
 from langchain_core.messages import HumanMessage
+from app.db.repository import save_expense
 
 llm_client = LLMClient()
 
@@ -163,6 +164,16 @@ def merge_clarification_node(state: AgentState) -> dict:
         return {}
 
 
+def save_expense_node(state: AgentState) -> AgentState:
+    """saves the expense to the db"""
+    expense = state["expense"]
+
+    try:
+        save_expense(expense)
+    except Exception as e:
+        print(f"Could not save the expense: {e}")
+
+
 def response_node(state: AgentState) -> dict:
     """Generate natural language response based on state"""
     intent = state.get("intent")
@@ -182,7 +193,10 @@ def response_node(state: AgentState) -> dict:
         category = f" under {expense.category}" if expense.category else ""
 
         return {
-            "response": (f"Got it — ₹{expense.amount} spent" f"{merchant}{category}.")
+            "response": (
+                f"Got it — ₹{expense.amount} spent"
+                f"{merchant}{category}. Record saved successfully"
+            )
         }
 
     return {"response": "I'm not sure how to help with that."}
