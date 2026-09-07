@@ -133,8 +133,6 @@ def clarification_node(state: AgentState) -> dict:
 
     answer = interrupt(question)
 
-    answer = interrupt(question)
-
     return {
         "messages": [HumanMessage(content=answer)],
         "clarification_rounds": rounds + 1,

@@ -27,7 +27,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
     if state_snapshot.next:
         # graph is paused
-        expense_graph.invoke(Command(resume=request.message), config=config)
+        result = expense_graph.invoke(Command(resume=request.message), config=config)
 
     else:
         initial_state = {
@@ -39,14 +39,11 @@ async def chat(request: ChatRequest) -> ChatResponse:
             "response": "",
         }
 
-        expense_graph.invoke(initial_state, config=config)
+        result = expense_graph.invoke(initial_state, config=config)
 
-        # Always read the latest checkpointed state
-    state_snapshot = expense_graph.get_state(config)
-    if state_snapshot.next:
-        # Graph is waiting for clarification
-        question = state_snapshot.tasks[0].interrupts[0].value
+    if "__interrupt__" in result:
+        interrupt_data = result["__interrupt__"][0]
 
-        return ChatResponse(response=question)
+        return ChatResponse(response=interrupt_data.value)
 
-    return ChatResponse(response=state_snapshot.values.get("response", ""))
+    return ChatResponse(response=result.get("response", ""))
