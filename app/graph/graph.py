@@ -10,6 +10,9 @@ from app.graph.nodes import (
     merge_clarification_node,
     response_node,
     save_expense_node,
+    extract_query_node,
+    execute_query_node,
+    format_query_node,
 )
 
 
@@ -40,6 +43,9 @@ def create_expense_graph():
     graph.add_node("merge_clarification", merge_clarification_node)
     graph.add_node("response", response_node)
     graph.add_node("save_expense", save_expense_node)
+    graph.add_node("extract_query", extract_query_node)
+    graph.add_node("execute_query", execute_query_node)
+    graph.add_node("format_query", format_query_node)
 
     # Start
     graph.add_edge(START, "router")
@@ -50,6 +56,7 @@ def create_expense_graph():
         route_after_router,
         {
             "expense": "expense_extractor",
+            "query": "extract_query",
             "other": "response",
         },
     )
@@ -83,6 +90,12 @@ def create_expense_graph():
     )
     graph.add_edge("validate_expense", "save_expense")
     graph.add_edge("save_expense", "response")
+
+    # Query flow
+    graph.add_edge("extract_query", "execute_query")
+    graph.add_edge("execute_query", "format_query")
+    graph.add_edge("format_query", "response")
+
     # Response
     graph.add_edge("response", END)
 

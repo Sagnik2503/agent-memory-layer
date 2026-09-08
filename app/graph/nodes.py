@@ -2,7 +2,7 @@ from app.graph.state import AgentState, Expense, ValidationResult
 from app.llm.model import LLMClient
 from langgraph.types import interrupt
 from langchain_core.messages import HumanMessage
-from app.db.repository import save_expense
+from app.db.repository import save_expense, get_expense
 
 llm_client = LLMClient()
 
@@ -20,6 +20,52 @@ def router_node(state: AgentState) -> dict:
     except Exception as e:
         print(f"Router error: {e}")
         return {"intent": "other"}
+
+
+def extract_query_node(state: AgentState) -> AgentState:
+    """extracts information for expense retrieval"""
+    query = state["messages"][-1].content
+
+    try:
+        extracted_query_result = llm_client.extract_query(query)
+        if extracted_query_result is not None:
+            return {"expense_query": extracted_query_result}
+    except Exception as e:
+        print(f"could not extract user query: {e}")
+    return {"expense_query": None}
+
+
+def execute_query_node(state: AgentState) -> AgentState:
+    """fetches the data from the db based on the query"""
+    expense_query = state["expense_query"]
+    try:
+        results = get_expense(expense_query)
+        return {"query_results": results}
+    except Exception as e:
+        print(f"Could not retrieve expenses: {e}")
+        return {"query_results": []}
+
+
+def format_query_node(state: AgentState) -> dict:
+    """Format database results into a natural-language response."""
+
+    query_results = state["query_results"]
+    user_query = state["messages"][-1].content
+
+    if not query_results:
+        return {"query_response": "No expenses found matching your criteria."}
+
+    try:
+        response = llm_client.format_query(
+            user_query=user_query, query_results=query_results
+        )
+
+        return {"query_response": response}
+
+    except Exception as e:
+        print(f"Could not format query response: {e}")
+
+        return {"query_response": "Sorry, I couldn't format the expense results."}
 
 
 def expense_extractor_node(state: AgentState) -> dict:
@@ -181,6 +227,7 @@ def response_node(state: AgentState) -> dict:
 
     validation_result = state.get("validation_result")
     existing_response = state.get("response", "")
+    query_response = state.get("query_response", "")
 
     if intent == "other":
         return {"response": "I'm ready to help you track and understand your spending."}
@@ -198,5 +245,10 @@ def response_node(state: AgentState) -> dict:
                 f"{merchant}{category}. Record saved successfully"
             )
         }
+
+    if intent == "query":
+        if query_response:
+            return {"response": query_response}
+        return {"response": "I couldn't retrieve your expenses."}
 
     return {"response": "I'm not sure how to help with that."}

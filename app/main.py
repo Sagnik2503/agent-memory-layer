@@ -46,6 +46,9 @@ async def chat(request: ChatRequest) -> ChatResponse:
             "validation_result": None,
             "clarification_rounds": 0,
             "response": "",
+            "expense_query": None,
+            "query_results": None,
+            "query_response": None,
         }
 
         result = expense_graph.invoke(initial_state, config=config)

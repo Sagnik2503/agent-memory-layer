@@ -17,6 +17,15 @@ class Expense(BaseModel):
     description: Optional[str] = None
 
 
+class ExpenseQuery(BaseModel):
+    start_date: Optional[dt] = None
+    end_date: Optional[dt] = None
+    merchant: list[str] = None
+    category: list[str] = None
+    subcategories: list[str] = []
+    aggregation: Literal["list", "total", "count"] = "list"
+
+
 class ValidationResult(BaseModel):
     is_valid: bool
     errors: list[str]
@@ -24,7 +33,7 @@ class ValidationResult(BaseModel):
 
 
 class IntentClassification(BaseModel):
-    intent: Literal["expense", "other"]
+    intent: Literal["expense", "other", "query"]
     confidence: float
 
 
@@ -42,8 +51,11 @@ class ChatResponse(BaseModel):
 
 class AgentState(TypedDict):
     messages: Annotated[list[AnyMessage], add_messages]
-    intent: Literal["expense", "other"]
+    intent: Literal["expense", "other", "query"]
     expense: Optional[Expense]
     validation_result: Optional[ValidationResult]
     clarification_round: int = 3
     response: str
+    expense_query: Optional[ExpenseQuery]
+    query_results: Optional[list[Expense]]
+    query_response: Optional[str]
