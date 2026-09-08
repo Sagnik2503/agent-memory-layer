@@ -1,5 +1,5 @@
 from typing import TypedDict, Optional, Literal, Annotated
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from langchain_core.messages import AnyMessage
 from langgraph.graph.message import add_messages
 from datetime import date as dt
@@ -24,6 +24,17 @@ class ExpenseQuery(BaseModel):
     category: list[str] = None
     subcategories: list[str] = []
     aggregation: Literal["list", "total", "count"] = "list"
+
+    @field_validator("start_date", "end_date", mode="before")
+    @classmethod
+    def parse_date(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, dt):
+            return v
+        if isinstance(v, str):
+            return dt.fromisoformat(v)
+        return v
 
 
 class ValidationResult(BaseModel):

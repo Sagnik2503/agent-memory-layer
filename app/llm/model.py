@@ -1,6 +1,7 @@
 import os
 import instructor
 from dotenv import load_dotenv
+from pydantic import BaseModel
 from app.graph.state import Expense, IntentClassification, ExpenseQuery
 from langchain_core.messages import AnyMessage
 
@@ -13,7 +14,9 @@ class LLMClient:
     def __init__(self):
         self.model = "google/gemini-3.6-flash"
         self.client = instructor.from_provider(
-            self.model, api_key=os.environ["GEMINI_API_KEY"], max_retries=3
+            self.model,
+            api_key=os.environ["GEMINI_API_KEY"],
+            mode=instructor.Mode.JSON,
         )
 
     def classify_intent(self, message: str) -> IntentClassification:
@@ -164,11 +167,15 @@ class LLMClient:
             Return only the response that should be shown to the user.
             """
 
+        class FormatResponse(BaseModel):
+            response: str
+
         formatted_message = self.client.create(
-            messages=[{"role": "user", "content": prompt}]
+            messages=[{"role": "user", "content": prompt}],
+            response_model=FormatResponse,
         )
 
-        return formatted_message
+        return formatted_message.response
 
     def merge_clarification(
         self,

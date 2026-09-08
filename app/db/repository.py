@@ -25,7 +25,7 @@ def save_expense(expense: Expense) -> ExpenseDB:
         db.close()
 
 
-def get_expense(expense_query: ExpenseQuery) -> list[ExpenseDB]:
+def get_expense(expense_query: ExpenseQuery) -> list[Expense]:
     db = Sessionlocal()
 
     try:
@@ -44,8 +44,20 @@ def get_expense(expense_query: ExpenseQuery) -> list[ExpenseDB]:
             query = query.where(ExpenseDB.category.in_(expense_query.category))
 
         query = query.order_by(ExpenseDB.date.desc())
+        results = query.all()
 
-        return query.all()
+        return [
+            Expense(
+                amount=r.amount,
+                currency=r.currency,
+                merchant=r.merchant,
+                category=r.category,
+                subcategory=r.subcategory,
+                date=r.date,
+                description=r.description,
+            )
+            for r in results
+        ]
 
     finally:
         db.close()
