@@ -1,5 +1,9 @@
-SYSTEM_PROMPT = """
+from datetime import date
+
+SYSTEM_PROMPT = f"""
 You are a conversational AI expense assistant.
+
+Today's date is {date.today().isoformat()}.
 
 You help users manage and understand their expenses.
 
