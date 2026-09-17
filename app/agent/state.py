@@ -52,3 +52,14 @@ class ExpenseQuery(BaseModel):
         if isinstance(v, str):
             return dt.fromisoformat(v)
         return v
+
+
+class ExpenseUpdate(BaseModel):
+    expense_id: int
+    amount: Optional[float] = None
+    currency: Optional[str] = None
+    merchant: Optional[str] = None
+    category: Optional[str] = None
+    subcategory: Optional[str] = None
+    date: Optional[dt] = None
+    description: Optional[str] = None

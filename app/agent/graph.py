@@ -22,8 +22,6 @@ llm_with_tools = llm.bind_tools(tools)
 
 
 def agent_node(state: AgentState):
-    print(f"\n[agent] {len(state['messages'])} message(s)")
-
     messages = [
         SystemMessage(content=SYSTEM_PROMPT),
         *state["messages"],
@@ -36,11 +34,8 @@ def agent_node(state: AgentState):
                 b["text"] for b in response.content if b.get("type") == "text"
             ]
             response.content = "\n".join(text_parts)
-        if response.tool_calls:
-            for tc in response.tool_calls:
-                print(f"[tool call] {tc['name']} {tc['args']}")
-        if response.content:
-            print(f"[response] {response.content[:300]}")
+        for tc in response.tool_calls:
+            print(f"[tool call] {tc['name']} {tc['args']}")
         return {"messages": [response]}
     except Exception as e:
         print(f"[error] {e}")

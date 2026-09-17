@@ -1,6 +1,6 @@
 from app.db.database import Sessionlocal
 from app.db.models import ExpenseDB
-from app.agent.state import ExpenseInput, ExpenseQuery, ExpenseResult
+from app.agent.state import ExpenseInput, ExpenseQuery, ExpenseResult, ExpenseUpdate
 from sqlalchemy import func
 
 
@@ -70,6 +70,43 @@ def get_expense(expense_query: ExpenseQuery) -> list[ExpenseResult]:
             )
             for r in results
         ]
+
+    finally:
+        db.close()
+
+
+def update_expenses(updates: list[ExpenseUpdate]) -> list[ExpenseDB]:
+
+    db = Sessionlocal()
+
+    try:
+        updated_expenses = []
+
+        for update in updates:
+            expense = (
+                db.query(ExpenseDB).filter(ExpenseDB.id == update.expense_id).first()
+            )
+
+            if not expense:
+                continue
+
+            update_data = update.model_dump(exclude={"expense_id"}, exclude_none=True)
+
+            for field, value in update_data.items():
+                setattr(expense, field, value)
+
+            updated_expenses.append(expense)
+
+        db.commit()
+
+        for expense in updated_expenses:
+            db.refresh(expense)
+
+        return updated_expenses
+
+    except Exception:
+        db.rollback()
+        raise
 
     finally:
         db.close()
