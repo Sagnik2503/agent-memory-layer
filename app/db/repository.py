@@ -110,3 +110,22 @@ def update_expenses(updates: list[ExpenseUpdate]) -> list[ExpenseDB]:
 
     finally:
         db.close()
+
+
+def delete_expenses(expense_ids: list[int]) -> list[int]:
+    db = Sessionlocal()
+
+    try:
+        deleted = []
+        for eid in expense_ids:
+            expense = db.query(ExpenseDB).filter(ExpenseDB.id == eid).first()
+            if expense:
+                db.delete(expense)
+                deleted.append(eid)
+        db.commit()
+        return deleted
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()

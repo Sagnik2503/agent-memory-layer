@@ -63,3 +63,7 @@ class ExpenseUpdate(BaseModel):
     subcategory: Optional[str] = None
     date: Optional[dt] = None
     description: Optional[str] = None
+
+
+class ExpenseDelete(BaseModel):
+    expense_ids: list[int]

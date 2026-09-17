@@ -5,9 +5,10 @@ from app.agent.state import (
     ExpenseQuery,
     ExpenseResult,
     ExpenseUpdate,
+    ExpenseDelete,
 )
 from typing import Optional
-from app.db.repository import save_expense, get_expense, update_expenses
+from app.db.repository import save_expense, get_expense, update_expenses, delete_expenses
 from datetime import date as dt
 
 
@@ -103,4 +104,18 @@ def update_expenses_tool(
         return result
 
 
-tools = [create_expenses_tool, get_expenses_tool, update_expenses_tool]
+@tool(args_schema=ExpenseDelete)
+def delete_expenses_tool(expense_ids: list[int]) -> str:
+    """Delete one or more expenses by their IDs."""
+    try:
+        deleted = delete_expenses(expense_ids=expense_ids)
+        result = f"Deleted {len(deleted)} expense(s): {deleted}"
+        print(f"[tool output] {result}")
+        return result
+    except Exception as e:
+        result = f"Error deleting expenses: {e}"
+        print(f"[tool output] {result}")
+        return result
+
+
+tools = [create_expenses_tool, get_expenses_tool, update_expenses_tool, delete_expenses_tool]
