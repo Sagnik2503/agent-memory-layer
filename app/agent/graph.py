@@ -2,7 +2,8 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode, tools_condition
-from langgraph.checkpoint.memory import MemorySaver
+
+# from langgraph.checkpoint.memory import MemorySaver
 
 from app.agent.state import AgentState
 from app.agent.tools import tools
@@ -63,8 +64,9 @@ def create_agent_graph():
 
     builder.add_edge("tools", "agent")
 
-    checkpointer = MemorySaver()
-    return builder.compile(checkpointer=checkpointer)
+    # checkpointer = MemorySaver()
+    # return builder.compile(checkpointer=checkpointer)
+    return builder.compile()
 
 
 graph = create_agent_graph()
