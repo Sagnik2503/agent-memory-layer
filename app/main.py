@@ -1,10 +1,8 @@
 from fastapi import FastAPI
-from app.graph.state import ChatRequest, ChatResponse
+from app.agent.state import ChatRequest, ChatResponse
 from langchain_core.messages import HumanMessage
-from app.graph.graph import create_expense_graph
-from langgraph.types import Command
+from app.agent.graph import create_agent_graph
 from app.db.database import Base, engine
-from app.db.models import ExpenseDB
 
 
 def init_db():
@@ -14,7 +12,7 @@ def init_db():
 app = FastAPI()
 
 init_db()
-expense_graph = create_expense_graph()
+expense_graph = create_agent_graph()
 
 
 @app.get("/")
@@ -31,31 +29,17 @@ async def health():
 async def chat(request: ChatRequest) -> ChatResponse:
     config = {"configurable": {"thread_id": request.thread_id}}
 
-    # check if convo is already paused
-    state_snapshot = expense_graph.get_state(config)
+    result = expense_graph.invoke(
+        {"messages": [HumanMessage(content=request.message)]},
+        config=config,
+    )
 
-    if state_snapshot.next:
-        # graph is paused
-        result = expense_graph.invoke(Command(resume=request.message), config=config)
+    ai_message = result["messages"][-1]
 
-    else:
-        initial_state = {
-            "messages": [HumanMessage(content=request.message)],
-            "intent": "other",
-            "expense": None,
-            "validation_result": None,
-            "clarification_rounds": 0,
-            "response": "",
-            "expense_query": None,
-            "query_results": None,
-            "query_response": None,
-        }
+    if isinstance(ai_message.content, list):
+        text_parts = [
+            b["text"] for b in ai_message.content if b.get("type") == "text"
+        ]
+        return ChatResponse(response="\n".join(text_parts))
 
-        result = expense_graph.invoke(initial_state, config=config)
-
-    if "__interrupt__" in result:
-        interrupt_data = result["__interrupt__"][0]
-
-        return ChatResponse(response=interrupt_data.value)
-
-    return ChatResponse(response=result.get("response", ""))
+    return ChatResponse(response=ai_message.content)

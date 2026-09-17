@@ -67,3 +67,12 @@ class ExpenseUpdate(BaseModel):
 
 class ExpenseDelete(BaseModel):
     expense_ids: list[int]
+
+
+class ChatRequest(BaseModel):
+    message: str
+    thread_id: str
+
+
+class ChatResponse(BaseModel):
+    response: str

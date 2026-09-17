@@ -2,6 +2,7 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode, tools_condition
+from langgraph.checkpoint.memory import MemorySaver
 
 from app.agent.state import AgentState
 from app.agent.tools import tools
@@ -39,31 +40,34 @@ def agent_node(state: AgentState):
         return {"messages": [response]}
     except Exception as e:
         print(f"[error] {e}")
-        from langchain_core.messages import AIMessage
-
         error_response = AIMessage(content=f"Error processing request: {e}")
         return {"messages": [error_response]}
 
 
-builder = StateGraph(AgentState)
+def create_agent_graph():
+    builder = StateGraph(AgentState)
 
-builder.add_node("agent", agent_node)
-builder.add_node("tools", ToolNode(tools))
+    builder.add_node("agent", agent_node)
+    builder.add_node("tools", ToolNode(tools))
 
-builder.add_edge(START, "agent")
+    builder.add_edge(START, "agent")
 
-builder.add_conditional_edges(
-    "agent",
-    tools_condition,
-    {
-        "tools": "tools",
-        "__end__": END,
-    },
-)
+    builder.add_conditional_edges(
+        "agent",
+        tools_condition,
+        {
+            "tools": "tools",
+            "__end__": END,
+        },
+    )
 
-builder.add_edge("tools", "agent")
+    builder.add_edge("tools", "agent")
 
-graph = builder.compile()
+    checkpointer = MemorySaver()
+    return builder.compile(checkpointer=checkpointer)
+
+
+graph = create_agent_graph()
 
 
 def main():
