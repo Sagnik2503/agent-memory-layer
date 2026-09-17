@@ -11,3 +11,6 @@ wheels/
 *.db
 *.sqlite
 *.sqlite3
+
+# LangGraph local/dev files
+.langgraph/
