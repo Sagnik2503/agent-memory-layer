@@ -16,3 +16,5 @@ wheels/
 .langgraph/
 .langgraph_api/
 langgraph.json
+
+.opencode
