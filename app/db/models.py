@@ -1,6 +1,7 @@
 from datetime import date as dt
 
-from sqlalchemy import Float, Date, String
+from sqlalchemy import Float, Date, String, Boolean, Numeric, DateTime, ForeignKey
+from decimal import Decimal
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.database import Base
 
@@ -15,3 +16,60 @@ class ExpenseDB(Base):
     subcategory: Mapped[str | None] = mapped_column(String, nullable=True)
     date: Mapped[dt | None] = mapped_column(Date, nullable=True)
     description: Mapped[str | None] = mapped_column(String, nullable=True)
+    subscription_id: Mapped[int | None] = mapped_column(
+        ForeignKey("subscriptions.id"),
+        nullable=True,
+    )
+
+
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    merchant: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+    )
+
+    amount: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        nullable=False,
+    )
+
+    currency: Mapped[str] = mapped_column(
+        String(3),
+        default="INR",
+        nullable=False,
+    )
+
+    category: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+    )
+
+    subcategory: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    frequency: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+    )
+
+    next_due_date: Mapped[dt] = mapped_column(
+        Date,
+        nullable=False,
+    )
+
+    is_active: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+    )
+
+    created_at: Mapped[dt] = mapped_column(
+        DateTime,
+        default=dt.utcnow,
+        nullable=False,
+    )
