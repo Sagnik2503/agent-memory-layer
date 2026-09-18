@@ -7,6 +7,8 @@ from app.agent.state import (
     ExpenseUpdate,
     SubscriptionResponse,
     SubscriptionCreate,
+    SubscriptionUpdate,
+    SubscriptionDelete,
 )
 from sqlalchemy import func
 
@@ -190,5 +192,54 @@ def get_subscription(is_active: bool = True) -> SubscriptionResponse:
             )
             for subscription in subscriptions
         ]
+    finally:
+        db.close()
+
+
+def update_subscriptions(updates: list[SubscriptionUpdate]) -> list[SubscriptionDB]:
+    db = Sessionlocal()
+    try:
+        updated_subscriptions = []
+        for update in updates:
+            subscription = (
+                db.query(SubscriptionDB)
+                .filter(SubscriptionDB.id == update.subscription_id)
+                .first()
+            )
+            if not subscription:
+                continue
+            update_data = update.model_dump(
+                exclude={"subscription_id"}, exclude_none=True
+            )
+            for field, value in update_data.items():
+                setattr(subscription, field, value)
+            updated_subscriptions.append(subscription)
+        db.commit()
+        for subscription in updated_subscriptions:
+            db.refresh(subscription)
+        return updated_subscriptions
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def delete_subscriptions(subscription_ids: list[int]) -> list[int]:
+    db = Sessionlocal()
+    try:
+        deleted = []
+        for sid in subscription_ids:
+            subscription = (
+                db.query(SubscriptionDB).filter(SubscriptionDB.id == sid).first()
+            )
+            if subscription:
+                db.delete(subscription)
+                deleted.append(sid)
+        db.commit()
+        return deleted
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()

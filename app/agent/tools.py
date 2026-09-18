@@ -9,6 +9,8 @@ from app.agent.state import (
     CreateSubscriptionsInput,
     SubscriptionCreate,
     SubscriptionResponse,
+    SubscriptionUpdate,
+    SubscriptionDelete,
 )
 from typing import Optional
 from app.db.repository import (
@@ -18,6 +20,8 @@ from app.db.repository import (
     delete_expenses,
     get_subscription,
     save_subscription,
+    update_subscriptions,
+    delete_subscriptions,
 )
 from datetime import date as dt
 
@@ -184,6 +188,61 @@ def get_subscription_tool(active_only: bool = True) -> list[dict]:
         return result
 
 
+@tool
+def update_subscription_tool(
+    updates: list[SubscriptionUpdate],
+):
+    """
+    Update one or more existing subscriptions.
+
+    Use this tool only after identifying the existing subscription(s).
+    The subscription_id must come from get_subscription_tool results.
+
+    Do not ask the user for subscription_id.
+    If the target subscription cannot be identified, use get_subscription_tool
+    or ask the user for clarification.
+    """
+    try:
+        updated_subscriptions = update_subscriptions(updates=updates)
+        if not updated_subscriptions:
+            result = "No subscriptions were found to update."
+        else:
+            result = [
+                SubscriptionResponse(
+                    id=subscription.id,
+                    merchant=subscription.merchant,
+                    amount=subscription.amount,
+                    currency=subscription.currency,
+                    category=subscription.category,
+                    subcategory=subscription.subcategory,
+                    frequency=subscription.frequency,
+                    next_due_date=subscription.next_due_date,
+                    is_active=subscription.is_active,
+                )
+                for subscription in updated_subscriptions
+            ]
+        print(f"[tool output] {result}")
+        return result
+    except Exception as e:
+        result = f"Failed to update subscriptions: {str(e)}"
+        print(f"[tool output] {result}")
+        return result
+
+
+@tool(args_schema=SubscriptionDelete)
+def delete_subscription_tool(subscription_ids: list[int]) -> str:
+    """Delete one or more subscriptions by their IDs."""
+    try:
+        deleted = delete_subscriptions(subscription_ids=subscription_ids)
+        result = f"Deleted {len(deleted)} subscription(s): {deleted}"
+        print(f"[tool output] {result}")
+        return result
+    except Exception as e:
+        result = f"Error deleting subscriptions: {e}"
+        print(f"[tool output] {result}")
+        return result
+
+
 tools = [
     create_expenses_tool,
     get_expenses_tool,
@@ -191,4 +250,6 @@ tools = [
     delete_expenses_tool,
     get_subscription_tool,
     create_subscription_tool,
+    update_subscription_tool,
+    delete_subscription_tool,
 ]

@@ -101,5 +101,21 @@ class SubscriptionCreate(BaseModel):
     next_due_date: dt
 
 
+class SubscriptionUpdate(BaseModel):
+    subscription_id: int
+    merchant: Optional[str] = None
+    amount: Optional[float] = None
+    currency: Optional[str] = None
+    category: Optional[str] = None
+    subcategory: Optional[str] = None
+    frequency: Optional[str] = None
+    next_due_date: Optional[dt] = None
+    is_active: Optional[bool] = None
+
+
+class SubscriptionDelete(BaseModel):
+    subscription_ids: list[int]
+
+
 class CreateSubscriptionsInput(BaseModel):
     subscriptions: list[SubscriptionCreate]
