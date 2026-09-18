@@ -1,8 +1,9 @@
 from typing import TypedDict, Annotated, Optional, Literal
 from langchain_core.messages import AnyMessage
 from langgraph.graph.message import add_messages
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, Field
 from datetime import date as dt
+from decimal import Decimal
 
 
 class AgentState(TypedDict):
@@ -76,3 +77,29 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     response: str
+
+
+class SubscriptionResponse(BaseModel):
+    id: int
+    merchant: str
+    amount: Decimal
+    currency: str
+    category: str
+    subcategory: str | None
+    frequency: str
+    next_due_date: dt
+    is_active: bool
+
+
+class SubscriptionCreate(BaseModel):
+    merchant: str
+    amount: float
+    currency: str = Field(default="INR")
+    category: str
+    subcategory: str | None = None
+    frequency: str
+    next_due_date: dt
+
+
+class CreateSubscriptionsInput(BaseModel):
+    subscriptions: list[SubscriptionCreate]

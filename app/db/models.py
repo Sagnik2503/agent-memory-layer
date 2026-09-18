@@ -1,5 +1,4 @@
-from datetime import date as dt
-
+from datetime import date as DateType, datetime
 from sqlalchemy import Float, Date, String, Boolean, Numeric, DateTime, ForeignKey
 from decimal import Decimal
 from sqlalchemy.orm import Mapped, mapped_column
@@ -14,7 +13,7 @@ class ExpenseDB(Base):
     merchant: Mapped[str | None] = mapped_column(String, nullable=True)
     category: Mapped[str | None] = mapped_column(String, nullable=True)
     subcategory: Mapped[str | None] = mapped_column(String, nullable=True)
-    date: Mapped[dt | None] = mapped_column(Date, nullable=True)
+    date: Mapped[DateType | None] = mapped_column(Date, nullable=True)
     description: Mapped[str | None] = mapped_column(String, nullable=True)
     subscription_id: Mapped[int | None] = mapped_column(
         ForeignKey("subscriptions.id"),
@@ -22,7 +21,7 @@ class ExpenseDB(Base):
     )
 
 
-class Subscription(Base):
+class SubscriptionDB(Base):
     __tablename__ = "subscriptions"
     id: Mapped[int] = mapped_column(primary_key=True)
 
@@ -57,7 +56,7 @@ class Subscription(Base):
         nullable=False,
     )
 
-    next_due_date: Mapped[dt] = mapped_column(
+    next_due_date: Mapped[DateType] = mapped_column(
         Date,
         nullable=False,
     )
@@ -68,8 +67,8 @@ class Subscription(Base):
         nullable=False,
     )
 
-    created_at: Mapped[dt] = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=dt.utcnow,
+        default=datetime.utcnow,
         nullable=False,
     )

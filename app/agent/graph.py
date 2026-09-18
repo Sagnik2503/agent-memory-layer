@@ -19,8 +19,16 @@ llm = ChatOpenAI(
     api_key=os.getenv("OPENAI_API_KEY"),
     use_responses_api=True,
     output_version="responses/v1",
+    max_completion_tokens=2000,
 )
 llm_with_tools = llm.bind_tools(tools)
+
+
+def extract_text(content) -> str:
+    """Pull plain text out of a Responses API content list, without mutating it."""
+    if isinstance(content, str):
+        return content
+    return "\n".join(b.get("text", "") for b in content if b.get("type") == "text")
 
 
 def agent_node(state: AgentState):
@@ -31,11 +39,6 @@ def agent_node(state: AgentState):
 
     try:
         response = llm_with_tools.invoke(messages)
-        if isinstance(response.content, list):
-            text_parts = [
-                b["text"] for b in response.content if b.get("type") == "text"
-            ]
-            response.content = "\n".join(text_parts)
         for tc in response.tool_calls:
             print(f"[tool call] {tc['name']} {tc['args']}")
         return {"messages": [response]}
@@ -83,7 +86,7 @@ def main():
             result = graph.invoke({"messages": messages})
             ai_message = result["messages"][-1]
             messages.append(ai_message)
-            print(f"assistant: {ai_message.content}")
+            print(f"assistant: {extract_text(ai_message.content)}")
         except KeyboardInterrupt:
             print("\nShutting down.")
             break

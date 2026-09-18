@@ -6,9 +6,19 @@ from app.agent.state import (
     ExpenseResult,
     ExpenseUpdate,
     ExpenseDelete,
+    CreateSubscriptionsInput,
+    SubscriptionCreate,
+    SubscriptionResponse,
 )
 from typing import Optional
-from app.db.repository import save_expense, get_expense, update_expenses, delete_expenses
+from app.db.repository import (
+    save_expense,
+    get_expense,
+    update_expenses,
+    delete_expenses,
+    get_subscription,
+    save_subscription,
+)
 from datetime import date as dt
 
 
@@ -118,4 +128,67 @@ def delete_expenses_tool(expense_ids: list[int]) -> str:
         return result
 
 
-tools = [create_expenses_tool, get_expenses_tool, update_expenses_tool, delete_expenses_tool]
+@tool(args_schema=CreateSubscriptionsInput)
+def create_subscription_tool(
+    subscriptions: list[SubscriptionCreate],
+) -> list[SubscriptionResponse]:
+    """Create one or more recurring subscriptions for the user.
+
+    Use this for adding new subscriptions. Returns the created subscriptions.
+    Do not use for one-time expenses.
+    """
+    try:
+        created_subscriptions = save_subscription(subscriptions)
+        result = [
+            SubscriptionResponse(
+                id=subscription.id,
+                merchant=subscription.merchant,
+                amount=subscription.amount,
+                currency=subscription.currency,
+                category=subscription.category,
+                subcategory=subscription.subcategory,
+                frequency=subscription.frequency,
+                next_due_date=subscription.next_due_date,
+                is_active=subscription.is_active,
+            )
+            for subscription in created_subscriptions
+        ]
+        print(f"[tool output] Successfully created {len(result)} subscription(s).")
+        return result
+
+    except Exception as e:
+        result = f"Failed to create subscriptions: {e}"
+        print(f"[tool output] {result}")
+        raise RuntimeError(result)
+
+
+@tool
+def get_subscription_tool(active_only: bool = True) -> list[dict]:
+    """Get the user's subscriptions.
+
+    Use this when the user wants to see, list, or check their subscriptions.
+    By default, only active subscriptions are returned.
+    Set active_only=False when the user asks for cancelled/inactive or all subscriptions.
+    """
+
+    subscriptions: list = []
+    try:
+        subscriptions = get_subscription(active_only)
+        print(f"[tool output] {len(subscriptions)} subscription(s) found")
+        if not subscriptions:
+            return "No subscriptions found."
+        return subscriptions
+    except Exception as e:
+        result = f"Error fetching Subscriptions: {e}"
+        print(f"[tool output] {result}")
+        return result
+
+
+tools = [
+    create_expenses_tool,
+    get_expenses_tool,
+    update_expenses_tool,
+    delete_expenses_tool,
+    get_subscription_tool,
+    create_subscription_tool,
+]

@@ -1,6 +1,13 @@
 from app.db.database import Sessionlocal
-from app.db.models import ExpenseDB
-from app.agent.state import ExpenseInput, ExpenseQuery, ExpenseResult, ExpenseUpdate
+from app.db.models import ExpenseDB, SubscriptionDB
+from app.agent.state import (
+    ExpenseInput,
+    ExpenseQuery,
+    ExpenseResult,
+    ExpenseUpdate,
+    SubscriptionResponse,
+    SubscriptionCreate,
+)
 from sqlalchemy import func
 
 
@@ -127,5 +134,61 @@ def delete_expenses(expense_ids: list[int]) -> list[int]:
     except Exception:
         db.rollback()
         raise
+    finally:
+        db.close()
+
+
+def save_subscription(subscriptions: list[SubscriptionCreate]) -> list[SubscriptionDB]:
+    db = Sessionlocal()
+    try:
+        db_subscriptions = [
+            SubscriptionDB(
+                merchant=subscription.merchant,
+                amount=subscription.amount,
+                currency=subscription.currency,
+                category=subscription.category,
+                subcategory=subscription.subcategory,
+                frequency=subscription.frequency,
+                next_due_date=subscription.next_due_date,
+                is_active=True,
+            )
+            for subscription in subscriptions
+        ]
+
+        db.add_all(db_subscriptions)
+        db.commit()
+        for subscription in db_subscriptions:
+            db.refresh(subscription)
+
+        return db_subscriptions
+
+    finally:
+        db.close()
+
+
+def get_subscription(is_active: bool = True) -> SubscriptionResponse:
+    db = Sessionlocal()
+    try:
+        query = db.query(SubscriptionDB)
+
+        if is_active:
+            query = query.filter(SubscriptionDB.is_active.is_(True))
+
+        subscriptions = query.order_by(SubscriptionDB.next_due_date).all()
+
+        return [
+            SubscriptionResponse(
+                id=subscription.id,
+                merchant=subscription.merchant,
+                amount=subscription.amount,
+                currency=subscription.currency,
+                category=subscription.category,
+                subcategory=subscription.subcategory,
+                frequency=subscription.frequency,
+                next_due_date=subscription.next_due_date,
+                is_active=subscription.is_active,
+            )
+            for subscription in subscriptions
+        ]
     finally:
         db.close()

@@ -1,18 +1,38 @@
-import pytest
-from app.llm.model import LLMClient
-from app.graph.state import Expense
+from dotenv import load_dotenv
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage
+import os
 
-def test_llm_client_initialization():
-    client = LLMClient()
-    assert client.client is not None
+load_dotenv()
 
-def test_classify_intent_expense():
-    client = LLMClient()
-    assert hasattr(client, 'classify_intent')
-    assert hasattr(client, 'extract_expense')
+llm = ChatOpenAI(
+    model="gpt-5-nano",
+    api_key=os.getenv("OPENAI_API_KEY"),
+    use_responses_api=True,
+    output_version="responses/v1",
+    max_completion_tokens=2000,
+)
 
-def test_extract_expense_returns_expense_object():
-    client = LLMClient()
-    import inspect
-    sig = inspect.signature(client.extract_expense)
-    assert sig.return_annotation == Expense
+response = llm.invoke([HumanMessage(content="Say hello")])
+
+print(response)
+print("CONTENT:", response.content[-1]["text"])
+
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage
+from app.agent.tools import tools
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+llm = ChatOpenAI(
+    model="gpt-5-nano",
+    api_key=os.getenv("OPENAI_API_KEY"),
+    use_responses_api=True,
+)
+llm_with_tools = llm.bind_tools(tools)
+response = llm_with_tools.invoke([HumanMessage(content="hello")])
+print(response.content)
+print(response.response_metadata.get("status"))
+print(response.usage_metadata)
