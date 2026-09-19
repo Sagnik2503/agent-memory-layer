@@ -2,6 +2,8 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode, tools_condition
+from langgraph.checkpoint.sqlite import SqliteSaver
+import sqlite3
 
 # from langgraph.checkpoint.memory import MemorySaver
 
@@ -44,7 +46,9 @@ def agent_node(state: AgentState):
         return {"messages": [response]}
     except Exception as e:
         print(f"[error] {e}")
-        error_response = AIMessage(content=f"Error processing request: {e}")
+        error_response = AIMessage(
+            content="I encountered an error processing your request. Please try again."
+        )
         return {"messages": [error_response]}
 
 
@@ -67,31 +71,34 @@ def create_agent_graph():
 
     builder.add_edge("tools", "agent")
 
-    # checkpointer = MemorySaver()
-    # return builder.compile(checkpointer=checkpointer)
-    return builder.compile()
+    os.makedirs("data", exist_ok=True)
+    conn = sqlite3.connect("data/agent_state.db", check_same_thread=False)
+    checkpointer = SqliteSaver(conn)
+    checkpointer.setup()
+    return builder.compile(checkpointer=checkpointer)
 
 
 graph = create_agent_graph()
 
 
 def main():
-    messages = []
+    config = {"configurable": {"thread_id": "local-user"}}
     while True:
         try:
             user = input("\nuser: ")
             if user == "exit":
                 break
-            messages.append(HumanMessage(content=user))
-            result = graph.invoke({"messages": messages})
+            result = graph.invoke(
+                {"messages": [HumanMessage(content=user)]},
+                config=config,
+            )
             ai_message = result["messages"][-1]
-            messages.append(ai_message)
             print(f"assistant: {extract_text(ai_message.content)}")
         except KeyboardInterrupt:
             print("\nShutting down.")
             break
         except Exception as e:
-            print(f"[error] {e}")
+            print(f"[error] An unexpected error occurred. Please try again.")
             continue
 
 

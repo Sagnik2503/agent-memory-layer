@@ -163,7 +163,7 @@ def create_subscription_tool(
     except Exception as e:
         result = f"Failed to create subscriptions: {e}"
         print(f"[tool output] {result}")
-        raise RuntimeError(result)
+        return result
 
 
 @tool
@@ -175,17 +175,14 @@ def get_subscription_tool(active_only: bool = True) -> list[dict]:
     Set active_only=False when the user asks for cancelled/inactive or all subscriptions.
     """
 
-    subscriptions: list = []
     try:
         subscriptions = get_subscription(active_only)
         print(f"[tool output] {len(subscriptions)} subscription(s) found")
-        if not subscriptions:
-            return "No subscriptions found."
         return subscriptions
     except Exception as e:
         result = f"Error fetching Subscriptions: {e}"
         print(f"[tool output] {result}")
-        return result
+        return []
 
 
 @tool

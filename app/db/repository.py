@@ -31,6 +31,9 @@ def save_expense(expense: ExpenseInput) -> ExpenseDB:
         db.refresh(expense_row)
 
         return expense_row
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
 
@@ -80,6 +83,9 @@ def get_expense(expense_query: ExpenseQuery) -> list[ExpenseResult]:
             for r in results
         ]
 
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
 
@@ -163,7 +169,9 @@ def save_subscription(subscriptions: list[SubscriptionCreate]) -> list[Subscript
             db.refresh(subscription)
 
         return db_subscriptions
-
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
 
@@ -192,6 +200,9 @@ def get_subscription(is_active: bool = True) -> SubscriptionResponse:
             )
             for subscription in subscriptions
         ]
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
 

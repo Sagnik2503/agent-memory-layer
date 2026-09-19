@@ -1,18 +1,27 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from app.agent.state import ChatRequest, ChatResponse
 from langchain_core.messages import HumanMessage
 from app.agent.graph import create_agent_graph
 from app.db.database import Base, engine
+from sqlalchemy.exc import SQLAlchemyError
 
 
 def init_db():
-    Base.metadata.create_all(bind=engine)
+    try:
+        Base.metadata.create_all(bind=engine)
+    except SQLAlchemyError as e:
+        print(f"[error] Failed to initialize database: {e}")
 
 
 app = FastAPI()
 
 init_db()
-expense_graph = create_agent_graph()
+
+try:
+    expense_graph = create_agent_graph()
+except Exception as e:
+    print(f"[error] Failed to create agent graph: {e}")
+    expense_graph = None
 
 
 @app.get("/")
@@ -27,19 +36,26 @@ async def health():
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest) -> ChatResponse:
-    config = {"configurable": {"thread_id": request.thread_id}}
+    if expense_graph is None:
+        raise HTTPException(status_code=503, detail="Agent not initialized")
 
-    result = expense_graph.invoke(
-        {"messages": [HumanMessage(content=request.message)]},
-        config=config,
-    )
+    try:
+        config = {"configurable": {"thread_id": request.thread_id}}
 
-    ai_message = result["messages"][-1]
+        result = expense_graph.invoke(
+            {"messages": [HumanMessage(content=request.message)]},
+            config=config,
+        )
 
-    if isinstance(ai_message.content, list):
-        text_parts = [
-            b["text"] for b in ai_message.content if b.get("type") == "text"
-        ]
-        return ChatResponse(response="\n".join(text_parts))
+        ai_message = result["messages"][-1]
 
-    return ChatResponse(response=ai_message.content)
+        if isinstance(ai_message.content, list):
+            text_parts = [
+                b["text"] for b in ai_message.content if b.get("type") == "text"
+            ]
+            return ChatResponse(response="\n".join(text_parts))
+
+        return ChatResponse(response=ai_message.content)
+    except Exception as e:
+        print(f"[error] Chat processing failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to process chat message")
