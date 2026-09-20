@@ -72,3 +72,40 @@ class SubscriptionDB(Base):
         default=datetime.utcnow,
         nullable=False,
     )
+
+
+class BudgetDB(Base):
+    __tablename__ = "budgets"
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+
+    category: Mapped[str | None] = mapped_column(
+        String, nullable=True
+    )  # NULL = overall budget
+
+    amount: Mapped[float] = mapped_column(Float, nullable=False)
+
+    period: Mapped[str] = mapped_column(String(20), default="monthly", nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, nullable=False
+    )
+
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime, onupdate=datetime.utcnow, nullable=True
+    )
+
+
+class PendingAlertDB(Base):
+    __tablename__ = "pending_alerts"
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+
+    type: Mapped[str] = mapped_column(String(50), nullable=False)
+    message: Mapped[str] = mapped_column(String, nullable=False)
+    payload: Mapped[str | None] = mapped_column(
+        String, nullable=True
+    )  # JSON-serialized
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, nullable=False
+    )
+    seen_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

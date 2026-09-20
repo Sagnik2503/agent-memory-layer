@@ -11,6 +11,7 @@ from app.agent.state import (
     SubscriptionResponse,
     SubscriptionUpdate,
     SubscriptionDelete,
+    ExpenseCategory,
 )
 from typing import Optional
 from app.db.repository import (
@@ -22,6 +23,8 @@ from app.db.repository import (
     save_subscription,
     update_subscriptions,
     delete_subscriptions,
+    get_all_budgets,
+    upsert_budget,
 )
 from datetime import date as dt
 
@@ -240,6 +243,43 @@ def delete_subscription_tool(subscription_ids: list[int]) -> str:
         return result
 
 
+@tool
+def set_budget_tool(
+    category: ExpenseCategory | None = None, amount: float = 0.0
+) -> str:
+    """
+    Set or update a monthly budget.
+
+    Omit category (or pass null) to set the overall monthly budget across all spending.
+    Pass a category to set a budget limit specific to that category (e.g. category="food").
+
+    If a budget already exists for this category, it is replaced with the new amount —
+    do not create duplicate budgets for the same category.
+    """
+    try:
+        budget = upsert_budget(category=category, amount=amount, period="monthly")
+        label = category.value if category else "overall"
+        result = f"Set {label} monthly budget to {budget.amount}."
+        print(f"[tool output] {result}")
+        return result
+    except Exception as e:
+        result = f"Error setting budget: {e}"
+        print(f"[tool output] {result}")
+        return result
+
+
+@tool
+def get_budgets_tool() -> list[dict]:
+    """Get all currently set budgets, including the overall budget if set."""
+    try:
+        budgets = get_all_budgets()
+        print(f"[tool output] {len(budgets)} budget(s) found")
+        return budgets
+    except Exception as e:
+        print(f"[tool output] Error fetching budgets: {e}")
+        return []
+
+
 tools = [
     create_expenses_tool,
     get_expenses_tool,
@@ -249,4 +289,6 @@ tools = [
     create_subscription_tool,
     update_subscription_tool,
     delete_subscription_tool,
+    set_budget_tool,
+    get_budgets_tool,
 ]

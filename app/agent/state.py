@@ -4,17 +4,37 @@ from langgraph.graph.message import add_messages
 from pydantic import BaseModel, field_validator, Field
 from datetime import date as dt
 from decimal import Decimal
+from enum import Enum
 
 
 class AgentState(TypedDict):
     messages: Annotated[list[AnyMessage], add_messages]
 
 
+class ExpenseCategory(str, Enum):
+    FOOD = "food"
+    TRANSPORT = "transport"
+    SHOPPING = "shopping"
+    BILLS = "bills"
+    ENTERTAINMENT = "entertainment"
+    HEALTH = "health"
+    PERSONAL_CARE = "personal_care"
+    OTHER = "other"
+
+
+class SubscriptionFrequency(str, Enum):
+    DAILY = "daily"
+    WEEKLY = "weekly"
+    MONTHLY = "monthly"
+    QUARTERLY = "quarterly"
+    YEARLY = "yearly"
+
+
 class ExpenseInput(BaseModel):
     amount: float
     currency: str | None = None
     merchant: str | None = None
-    category: str | None = None
+    category: ExpenseCategory
     subcategory: str | None = None
     date: dt | None = None
     description: str | None = None
@@ -25,7 +45,7 @@ class ExpenseResult(BaseModel):
     amount: float
     currency: str | None = None
     merchant: str | None = None
-    category: str | None = None
+    category: ExpenseCategory
     subcategory: str | None = None
     date: dt | None = None
     description: str | None = None
@@ -39,7 +59,7 @@ class ExpenseQuery(BaseModel):
     start_date: Optional[dt] = None
     end_date: Optional[dt] = None
     merchant: Optional[list[str]] = None
-    category: Optional[list[str]] = None
+    category: Optional[list[ExpenseCategory]] = None
     subcategories: list[str] = []
     aggregation: Literal["list", "total", "count"] = "list"
 
@@ -60,7 +80,7 @@ class ExpenseUpdate(BaseModel):
     amount: Optional[float] = None
     currency: Optional[str] = None
     merchant: Optional[str] = None
-    category: Optional[str] = None
+    category: Optional[ExpenseCategory] = None
     subcategory: Optional[str] = None
     date: Optional[dt] = None
     description: Optional[str] = None
@@ -84,9 +104,9 @@ class SubscriptionResponse(BaseModel):
     merchant: str
     amount: Decimal
     currency: str
-    category: str
+    category: ExpenseCategory
     subcategory: str | None
-    frequency: str
+    frequency: SubscriptionFrequency
     next_due_date: dt
     is_active: bool
 
@@ -95,9 +115,9 @@ class SubscriptionCreate(BaseModel):
     merchant: str
     amount: float
     currency: str = Field(default="INR")
-    category: str
+    category: ExpenseCategory
     subcategory: str | None = None
-    frequency: str
+    frequency: SubscriptionFrequency
     next_due_date: dt
 
 
@@ -106,9 +126,9 @@ class SubscriptionUpdate(BaseModel):
     merchant: Optional[str] = None
     amount: Optional[float] = None
     currency: Optional[str] = None
-    category: Optional[str] = None
+    category: Optional[ExpenseCategory] = None
     subcategory: Optional[str] = None
-    frequency: Optional[str] = None
+    frequency: Optional[SubscriptionFrequency] = None
     next_due_date: Optional[dt] = None
     is_active: Optional[bool] = None
 

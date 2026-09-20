@@ -1,5 +1,5 @@
 from app.db.database import Sessionlocal
-from app.db.models import ExpenseDB, SubscriptionDB
+from app.db.models import ExpenseDB, SubscriptionDB, BudgetDB
 from app.agent.state import (
     ExpenseInput,
     ExpenseQuery,
@@ -9,7 +9,9 @@ from app.agent.state import (
     SubscriptionCreate,
     SubscriptionUpdate,
     SubscriptionDelete,
+    ExpenseCategory,
 )
+from datetime import datetime
 from sqlalchemy import func
 
 
@@ -249,6 +251,55 @@ def delete_subscriptions(subscription_ids: list[int]) -> list[int]:
                 deleted.append(sid)
         db.commit()
         return deleted
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def upsert_budget(
+    category: ExpenseCategory | None, amount: float, period: str = "monthly"
+) -> BudgetDB:
+    db = Sessionlocal()
+    try:
+        existing = (
+            db.query(BudgetDB)
+            .filter(BudgetDB.category == (category.value if category else None))
+            .filter(BudgetDB.period == period)
+            .first()
+        )
+        if existing:
+            existing.amount = amount
+            existing.updated_at = datetime.utcnow()
+            db.commit()
+            db.refresh(existing)
+            return existing
+        else:
+            new_budget = BudgetDB(
+                category=category.value if category else None,
+                amount=amount,
+                period=period,
+            )
+            db.add(new_budget)
+            db.commit()
+            db.refresh(new_budget)
+            return new_budget
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def get_all_budgets() -> list[dict]:
+    db = Sessionlocal()
+    try:
+        budgets = db.query(BudgetDB).filter(BudgetDB.period == "monthly").all()
+        return [
+            {"id": b.id, "category": b.category, "amount": b.amount, "period": b.period}
+            for b in budgets
+        ]
     except Exception:
         db.rollback()
         raise
