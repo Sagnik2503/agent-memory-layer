@@ -305,3 +305,39 @@ def get_all_budgets() -> list[dict]:
         raise
     finally:
         db.close()
+
+
+def get_expenses_for_month(
+    year: int,
+    month: int,
+    currency: str | None = None
+) -> list[ExpenseDB]:
+    """Fetch all expenses for a specific month."""
+    db = Sessionlocal()
+    try:
+        query = db.query(ExpenseDB).filter(
+            func.extract("year", ExpenseDB.date) == year,
+            func.extract("month", ExpenseDB.date) == month
+        )
+        if currency:
+            query = query.filter(ExpenseDB.currency == currency)
+        expenses = query.order_by(ExpenseDB.date.desc()).all()
+        return expenses
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def get_budgets_for_period(period: str = "monthly") -> list[BudgetDB]:
+    """Fetch all budgets for a given period."""
+    db = Sessionlocal()
+    try:
+        budgets = db.query(BudgetDB).filter(BudgetDB.period == period).all()
+        return budgets
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
