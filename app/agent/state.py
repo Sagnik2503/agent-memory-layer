@@ -139,3 +139,51 @@ class SubscriptionDelete(BaseModel):
 
 class CreateSubscriptionsInput(BaseModel):
     subscriptions: list[SubscriptionCreate]
+
+
+class MonthlySummary(BaseModel):
+    month: str  # "2026-09"
+    total_spent: float
+    total_transactions: int
+    average_transaction: float
+    top_category: str
+    top_merchant: str
+    currency: str
+
+
+class CategoryBreakdown(BaseModel):
+    category: str
+    amount: float
+    percentage: float
+    transaction_count: int
+    average_per_transaction: float
+
+
+class BudgetStatus(BaseModel):
+    category: str | None  # None = overall budget
+    budget_amount: float
+    spent_amount: float
+    remaining: float
+    percentage_used: float
+    is_over_budget: bool
+
+
+class SubscriptionSummary(BaseModel):
+    total_monthly_cost: float
+    active_count: int
+    by_category: list[CategoryBreakdown]
+    next_due_dates: list[dict]  # {merchant, amount, due_date}
+
+
+class MonthComparison(BaseModel):
+    current_month: MonthlySummary
+    previous_month: MonthlySummary
+    total_change: float
+    total_change_percentage: float
+    top_category_change: dict  # {category, change_amount, change_percentage}
+
+
+class BudgetInput(BaseModel):
+    category: str | None  # None = overall budget
+    amount: float
+    period: str  # "monthly"
