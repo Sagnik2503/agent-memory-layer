@@ -425,7 +425,7 @@ def get_subscription_summary_tool() -> SubscriptionSummary:
     Use when user asks: 'How much am I spending on subscriptions?', 'Subscription summary', 'What are my recurring costs?'
     """
     try:
-        subscriptions = get_subscription(active_only=True)
+        subscriptions = get_subscription(is_active=True)
         summary = get_subscription_summary(subscriptions)
         print(f"[tool output] {summary.active_count} active subscriptions, {summary.total_monthly_cost} monthly cost")
         return summary
