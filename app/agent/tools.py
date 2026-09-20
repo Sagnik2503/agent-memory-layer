@@ -45,6 +45,23 @@ from app.analytics import (
 from datetime import date, datetime as dt
 
 
+def _db_to_expense_results(expenses) -> list[ExpenseResult]:
+    """Convert database expense objects to ExpenseResult models."""
+    return [
+        ExpenseResult(
+            id=e.id,
+            amount=e.amount,
+            currency=e.currency,
+            merchant=e.merchant,
+            category=e.category,
+            subcategory=e.subcategory,
+            date=e.date,
+            description=e.description,
+        )
+        for e in expenses
+    ]
+
+
 @tool(args_schema=CreateExpensesInput)
 def create_expenses_tool(expenses: list[ExpenseInput]) -> str:
     """Create one or more expenses."""
@@ -89,19 +106,7 @@ def get_expenses_tool(
 
         expenses = get_expense(expense_query)
 
-        results = [
-            ExpenseResult(
-                id=expense.id,
-                amount=expense.amount,
-                currency=expense.currency,
-                merchant=expense.merchant,
-                category=expense.category,
-                subcategory=expense.subcategory,
-                date=expense.date,
-                description=expense.description,
-            )
-            for expense in expenses
-        ]
+        results = _db_to_expense_results(expenses)
         print(f"[tool output] {len(results)} expense(s) found")
         return results
     except Exception as e:
@@ -312,19 +317,7 @@ def get_monthly_summary_tool(
         year, month_num = map(int, month.split("-"))
         expenses = get_expenses_for_month(year, month_num, currency)
         
-        expense_results = [
-            ExpenseResult(
-                id=e.id,
-                amount=e.amount,
-                currency=e.currency,
-                merchant=e.merchant,
-                category=e.category,
-                subcategory=e.subcategory,
-                date=e.date,
-                description=e.description,
-            )
-            for e in expenses
-        ]
+        expense_results = _db_to_expense_results(expenses)
         
         summary = get_monthly_summary(expense_results, month, currency)
         print(f"[tool output] Monthly summary: {summary.total_spent} total spent")
@@ -332,7 +325,15 @@ def get_monthly_summary_tool(
     except Exception as e:
         result = f"Error getting monthly summary: {e}"
         print(f"[tool output] {result}")
-        return result
+        return MonthlySummary(
+            month=month or "",
+            total_spent=0,
+            total_transactions=0,
+            average_transaction=0,
+            top_category="N/A",
+            top_merchant="N/A",
+            currency=currency,
+        )
 
 
 @tool
@@ -351,19 +352,7 @@ def get_category_breakdown_tool(
         year, month_num = map(int, month.split("-"))
         expenses = get_expenses_for_month(year, month_num, currency)
         
-        expense_results = [
-            ExpenseResult(
-                id=e.id,
-                amount=e.amount,
-                currency=e.currency,
-                merchant=e.merchant,
-                category=e.category,
-                subcategory=e.subcategory,
-                date=e.date,
-                description=e.description,
-            )
-            for e in expenses
-        ]
+        expense_results = _db_to_expense_results(expenses)
         
         breakdown = get_category_breakdown(expense_results)
         print(f"[tool output] {len(breakdown)} categories found")
@@ -395,19 +384,7 @@ def get_budget_status_tool() -> list[BudgetStatus]:
         
         expenses = get_expenses_for_month(today.year, today.month)
         
-        expense_results = [
-            ExpenseResult(
-                id=e.id,
-                amount=e.amount,
-                currency=e.currency,
-                merchant=e.merchant,
-                category=e.category,
-                subcategory=e.subcategory,
-                date=e.date,
-                description=e.description,
-            )
-            for e in expenses
-        ]
+        expense_results = _db_to_expense_results(expenses)
         
         status = get_budget_status(budgets, expense_results)
         print(f"[tool output] {len(status)} budgets checked")
@@ -432,7 +409,12 @@ def get_subscription_summary_tool() -> SubscriptionSummary:
     except Exception as e:
         result = f"Error getting subscription summary: {e}"
         print(f"[tool output] {result}")
-        return result
+        return SubscriptionSummary(
+            total_monthly_cost=0,
+            active_count=0,
+            by_category=[],
+            next_due_dates=[],
+        )
 
 
 @tool
@@ -448,37 +430,13 @@ def compare_months_tool(
         # Get month 1 data
         year1, month_num1 = map(int, month1.split("-"))
         expenses1 = get_expenses_for_month(year1, month_num1)
-        expense_results1 = [
-            ExpenseResult(
-                id=e.id,
-                amount=e.amount,
-                currency=e.currency,
-                merchant=e.merchant,
-                category=e.category,
-                subcategory=e.subcategory,
-                date=e.date,
-                description=e.description,
-            )
-            for e in expenses1
-        ]
+        expense_results1 = _db_to_expense_results(expenses1)
         summary1 = get_monthly_summary(expense_results1, month1)
         
         # Get month 2 data
         year2, month_num2 = map(int, month2.split("-"))
         expenses2 = get_expenses_for_month(year2, month_num2)
-        expense_results2 = [
-            ExpenseResult(
-                id=e.id,
-                amount=e.amount,
-                currency=e.currency,
-                merchant=e.merchant,
-                category=e.category,
-                subcategory=e.subcategory,
-                date=e.date,
-                description=e.description,
-            )
-            for e in expenses2
-        ]
+        expense_results2 = _db_to_expense_results(expenses2)
         summary2 = get_monthly_summary(expense_results2, month2)
         
         comparison = compare_months(summary1, summary2)
@@ -487,7 +445,22 @@ def compare_months_tool(
     except Exception as e:
         result = f"Error comparing months: {e}"
         print(f"[tool output] {result}")
-        return result
+        empty_summary = MonthlySummary(
+            month="",
+            total_spent=0,
+            total_transactions=0,
+            average_transaction=0,
+            top_category="N/A",
+            top_merchant="N/A",
+            currency="INR",
+        )
+        return MonthComparison(
+            current_month=empty_summary,
+            previous_month=empty_summary,
+            total_change=0,
+            total_change_percentage=0,
+            top_category_change={},
+        )
 
 
 @tool
@@ -506,19 +479,7 @@ def get_spending_by_merchant_tool(
         year, month_num = map(int, month.split("-"))
         expenses = get_expenses_for_month(year, month_num)
         
-        expense_results = [
-            ExpenseResult(
-                id=e.id,
-                amount=e.amount,
-                currency=e.currency,
-                merchant=e.merchant,
-                category=e.category,
-                subcategory=e.subcategory,
-                date=e.date,
-                description=e.description,
-            )
-            for e in expenses
-        ]
+        expense_results = _db_to_expense_results(expenses)
         
         merchants = get_spending_by_merchant(expense_results, top_n)
         print(f"[tool output] {len(merchants)} top merchants found")
