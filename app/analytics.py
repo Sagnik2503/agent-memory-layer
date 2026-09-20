@@ -1,4 +1,3 @@
-from datetime import date
 from app.agent.state import (
     MonthlySummary,
     CategoryBreakdown,
@@ -8,8 +7,26 @@ from app.agent.state import (
     BudgetInput,
     ExpenseResult,
     SubscriptionResponse,
+    SubscriptionFrequency,
 )
 from collections import defaultdict
+
+
+def _normalize_to_monthly(amount: float, frequency: SubscriptionFrequency) -> float:
+    """Convert a subscription amount to its monthly equivalent."""
+    match frequency:
+        case SubscriptionFrequency.DAILY:
+            return amount * 30
+        case SubscriptionFrequency.WEEKLY:
+            return amount * 4.33  # 52 weeks / 12 months
+        case SubscriptionFrequency.MONTHLY:
+            return amount
+        case SubscriptionFrequency.QUARTERLY:
+            return amount / 3
+        case SubscriptionFrequency.YEARLY:
+            return amount / 12
+        case _:
+            return amount
 
 
 def get_monthly_summary(
@@ -95,7 +112,6 @@ def get_category_breakdown(
 def get_budget_status(
     budgets: list[BudgetInput],
     expenses: list[ExpenseResult],
-    month: str
 ) -> list[BudgetStatus]:
     """Compare budget limits against actual spending for the month."""
     if not budgets:
@@ -147,14 +163,14 @@ def get_subscription_summary(
         )
 
     active = [s for s in subscriptions if s.is_active]
-    total_monthly_cost = sum(float(s.amount) for s in active)
+    total_monthly_cost = sum(_normalize_to_monthly(float(s.amount), s.frequency) for s in active)
 
     # Group by category
     category_totals: dict[str, float] = defaultdict(float)
     category_counts: dict[str, int] = defaultdict(int)
     for s in active:
         if s.category:
-            category_totals[s.category.value] += float(s.amount)
+            category_totals[s.category.value] += _normalize_to_monthly(float(s.amount), s.frequency)
             category_counts[s.category.value] += 1
 
     by_category = []
