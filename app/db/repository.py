@@ -11,15 +11,19 @@ from app.agent.state import (
     SubscriptionDelete,
     ExpenseCategory,
 )
-from datetime import datetime
+from datetime import datetime, date, timedelta
+import calendar
 from sqlalchemy import func
 
 
-def save_expense(expense: ExpenseInput) -> ExpenseDB:
+def save_expense(
+    user_id: str, expense: ExpenseInput, subscription_id: int | None = None
+) -> ExpenseDB:
 
     db = Sessionlocal()
     try:
         expense_row = ExpenseDB(
+            user_id=user_id,
             amount=expense.amount,
             currency=expense.currency,
             merchant=expense.merchant,
@@ -27,6 +31,7 @@ def save_expense(expense: ExpenseInput) -> ExpenseDB:
             subcategory=expense.subcategory,
             date=expense.date,
             description=expense.description,
+            subscription_id=subscription_id,
         )
         db.add(expense_row)
         db.commit()
@@ -40,11 +45,40 @@ def save_expense(expense: ExpenseInput) -> ExpenseDB:
         db.close()
 
 
-def get_expense(expense_query: ExpenseQuery) -> list[ExpenseResult]:
+def get_expenses_by_ids(user_id: str, expense_ids: list[int]) -> list[ExpenseResult]:
+    db = Sessionlocal()
+    try:
+        rows = (
+            db.query(ExpenseDB)
+            .filter(ExpenseDB.user_id == user_id, ExpenseDB.id.in_(expense_ids))
+            .order_by(ExpenseDB.date.desc())
+            .all()
+        )
+        return [
+            ExpenseResult(
+                id=r.id,
+                amount=r.amount,
+                currency=r.currency,
+                merchant=r.merchant,
+                category=r.category,
+                subcategory=r.subcategory,
+                date=r.date,
+                description=r.description,
+            )
+            for r in rows
+        ]
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def get_expense(user_id: str, expense_query: ExpenseQuery) -> list[ExpenseResult]:
     db = Sessionlocal()
 
     try:
-        query = db.query(ExpenseDB)
+        query = db.query(ExpenseDB).filter(ExpenseDB.user_id == user_id)
 
         if expense_query.start_date:
             query = query.where(ExpenseDB.date >= expense_query.start_date)
@@ -92,7 +126,7 @@ def get_expense(expense_query: ExpenseQuery) -> list[ExpenseResult]:
         db.close()
 
 
-def update_expenses(updates: list[ExpenseUpdate]) -> list[ExpenseDB]:
+def update_expenses(user_id: str, updates: list[ExpenseUpdate]) -> list[ExpenseDB]:
 
     db = Sessionlocal()
 
@@ -101,7 +135,9 @@ def update_expenses(updates: list[ExpenseUpdate]) -> list[ExpenseDB]:
 
         for update in updates:
             expense = (
-                db.query(ExpenseDB).filter(ExpenseDB.id == update.expense_id).first()
+                db.query(ExpenseDB)
+                .filter(ExpenseDB.id == update.expense_id, ExpenseDB.user_id == user_id)
+                .first()
             )
 
             if not expense:
@@ -129,13 +165,13 @@ def update_expenses(updates: list[ExpenseUpdate]) -> list[ExpenseDB]:
         db.close()
 
 
-def delete_expenses(expense_ids: list[int]) -> list[int]:
+def delete_expenses(user_id: str, expense_ids: list[int]) -> list[int]:
     db = Sessionlocal()
 
     try:
         deleted = []
         for eid in expense_ids:
-            expense = db.query(ExpenseDB).filter(ExpenseDB.id == eid).first()
+            expense = db.query(ExpenseDB).filter(ExpenseDB.id == eid, ExpenseDB.user_id == user_id).first()
             if expense:
                 db.delete(expense)
                 deleted.append(eid)
@@ -148,11 +184,12 @@ def delete_expenses(expense_ids: list[int]) -> list[int]:
         db.close()
 
 
-def save_subscription(subscriptions: list[SubscriptionCreate]) -> list[SubscriptionDB]:
+def save_subscription(user_id: str, subscriptions: list[SubscriptionCreate]) -> list[SubscriptionDB]:
     db = Sessionlocal()
     try:
         db_subscriptions = [
             SubscriptionDB(
+                user_id=user_id,
                 merchant=subscription.merchant,
                 amount=subscription.amount,
                 currency=subscription.currency,
@@ -178,10 +215,10 @@ def save_subscription(subscriptions: list[SubscriptionCreate]) -> list[Subscript
         db.close()
 
 
-def get_subscription(is_active: bool = True) -> SubscriptionResponse:
+def get_subscription(user_id: str, is_active: bool = True) -> list[SubscriptionResponse]:
     db = Sessionlocal()
     try:
-        query = db.query(SubscriptionDB)
+        query = db.query(SubscriptionDB).filter(SubscriptionDB.user_id == user_id)
 
         if is_active:
             query = query.filter(SubscriptionDB.is_active.is_(True))
@@ -209,14 +246,14 @@ def get_subscription(is_active: bool = True) -> SubscriptionResponse:
         db.close()
 
 
-def update_subscriptions(updates: list[SubscriptionUpdate]) -> list[SubscriptionDB]:
+def update_subscriptions(user_id: str, updates: list[SubscriptionUpdate]) -> list[SubscriptionDB]:
     db = Sessionlocal()
     try:
         updated_subscriptions = []
         for update in updates:
             subscription = (
                 db.query(SubscriptionDB)
-                .filter(SubscriptionDB.id == update.subscription_id)
+                .filter(SubscriptionDB.id == update.subscription_id, SubscriptionDB.user_id == user_id)
                 .first()
             )
             if not subscription:
@@ -238,13 +275,13 @@ def update_subscriptions(updates: list[SubscriptionUpdate]) -> list[Subscription
         db.close()
 
 
-def delete_subscriptions(subscription_ids: list[int]) -> list[int]:
+def delete_subscriptions(user_id: str, subscription_ids: list[int]) -> list[int]:
     db = Sessionlocal()
     try:
         deleted = []
         for sid in subscription_ids:
             subscription = (
-                db.query(SubscriptionDB).filter(SubscriptionDB.id == sid).first()
+                db.query(SubscriptionDB).filter(SubscriptionDB.id == sid, SubscriptionDB.user_id == user_id).first()
             )
             if subscription:
                 db.delete(subscription)
@@ -259,12 +296,13 @@ def delete_subscriptions(subscription_ids: list[int]) -> list[int]:
 
 
 def upsert_budget(
-    category: ExpenseCategory | None, amount: float, period: str = "monthly"
+    user_id: str, category: ExpenseCategory | None, amount: float, period: str = "monthly"
 ) -> BudgetDB:
     db = Sessionlocal()
     try:
         existing = (
             db.query(BudgetDB)
+            .filter(BudgetDB.user_id == user_id)
             .filter(BudgetDB.category == (category.value if category else None))
             .filter(BudgetDB.period == period)
             .first()
@@ -277,6 +315,7 @@ def upsert_budget(
             return existing
         else:
             new_budget = BudgetDB(
+                user_id=user_id,
                 category=category.value if category else None,
                 amount=amount,
                 period=period,
@@ -292,10 +331,10 @@ def upsert_budget(
         db.close()
 
 
-def get_all_budgets() -> list[dict]:
+def get_all_budgets(user_id: str) -> list[dict]:
     db = Sessionlocal()
     try:
-        budgets = db.query(BudgetDB).filter(BudgetDB.period == "monthly").all()
+        budgets = db.query(BudgetDB).filter(BudgetDB.user_id == user_id, BudgetDB.period == "monthly").all()
         return [
             {"id": b.id, "category": b.category, "amount": b.amount, "period": b.period}
             for b in budgets
@@ -308,6 +347,7 @@ def get_all_budgets() -> list[dict]:
 
 
 def get_expenses_for_month(
+    user_id: str,
     year: int,
     month: int,
     currency: str | None = None
@@ -316,6 +356,7 @@ def get_expenses_for_month(
     db = Sessionlocal()
     try:
         query = db.query(ExpenseDB).filter(
+            ExpenseDB.user_id == user_id,
             func.extract("year", ExpenseDB.date) == year,
             func.extract("month", ExpenseDB.date) == month
         )
@@ -330,14 +371,152 @@ def get_expenses_for_month(
         db.close()
 
 
-def get_budgets_for_period(period: str = "monthly") -> list[BudgetDB]:
+def get_budgets_for_period(user_id: str, period: str = "monthly") -> list[BudgetDB]:
     """Fetch all budgets for a given period."""
     db = Sessionlocal()
     try:
-        budgets = db.query(BudgetDB).filter(BudgetDB.period == period).all()
+        budgets = db.query(BudgetDB).filter(BudgetDB.user_id == user_id, BudgetDB.period == period).all()
         return budgets
     except Exception:
         db.rollback()
         raise
     finally:
         db.close()
+
+
+def _add_months(current: date, months: int) -> date:
+    m = current.month - 1 + months
+    year = current.year + m // 12
+    month = m % 12 + 1
+    day = min(current.day, calendar.monthrange(year, month)[1])
+    return date(year, month, day)
+
+
+def advance_due_date(current: date, frequency: str) -> date:
+    """Return the next due date after `current` for a given frequency."""
+    match frequency:
+        case "daily":
+            return current + timedelta(days=1)
+        case "weekly":
+            return current + timedelta(weeks=1)
+        case "monthly":
+            return _add_months(current, 1)
+        case "quarterly":
+            return _add_months(current, 3)
+        case "yearly":
+            return _add_months(current, 12)
+        case _:
+            return _add_months(current, 1)
+
+
+def get_due_subscriptions(
+    user_id: str, on_or_before: date | None = None
+) -> list[SubscriptionResponse]:
+    """Active subscriptions due on or before the given date (default: today)."""
+    if on_or_before is None:
+        on_or_before = date.today()
+    db = Sessionlocal()
+    try:
+        rows = (
+            db.query(SubscriptionDB)
+            .filter(
+                SubscriptionDB.user_id == user_id,
+                SubscriptionDB.is_active.is_(True),
+                SubscriptionDB.next_due_date <= on_or_before,
+            )
+            .order_by(SubscriptionDB.next_due_date)
+            .all()
+        )
+        return [
+            SubscriptionResponse(
+                id=s.id,
+                merchant=s.merchant,
+                amount=s.amount,
+                currency=s.currency,
+                category=s.category,
+                subcategory=s.subcategory,
+                frequency=s.frequency,
+                next_due_date=s.next_due_date,
+                is_active=s.is_active,
+            )
+            for s in rows
+        ]
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def get_subscriptions_due_within(
+    user_id: str, within_days: int = 3
+) -> list[SubscriptionResponse]:
+    """Active subscriptions due within the next `within_days` days (inclusive of today)."""
+    cutoff = date.today() + timedelta(days=within_days)
+    db = Sessionlocal()
+    try:
+        rows = (
+            db.query(SubscriptionDB)
+            .filter(
+                SubscriptionDB.user_id == user_id,
+                SubscriptionDB.is_active.is_(True),
+                SubscriptionDB.next_due_date <= cutoff,
+            )
+            .order_by(SubscriptionDB.next_due_date)
+            .all()
+        )
+        return [
+            SubscriptionResponse(
+                id=s.id,
+                merchant=s.merchant,
+                amount=s.amount,
+                currency=s.currency,
+                category=s.category,
+                subcategory=s.subcategory,
+                frequency=s.frequency,
+                next_due_date=s.next_due_date,
+                is_active=s.is_active,
+            )
+            for s in rows
+        ]
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def advance_subscription_due_date(
+    user_id: str, subscription_id: int, new_due_date: date
+) -> bool:
+    """Update a subscription's next_due_date. Returns True if the row was updated."""
+    db = Sessionlocal()
+    try:
+        row = (
+            db.query(SubscriptionDB)
+            .filter(
+                SubscriptionDB.id == subscription_id,
+                SubscriptionDB.user_id == user_id,
+            )
+            .first()
+        )
+        if not row:
+            return False
+        row.next_due_date = new_due_date
+        db.commit()
+        return True
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def catch_up_due_date(current_due: date, frequency: str, today: date) -> date:
+    """Advance `current_due` by frequency steps until it falls after `today`."""
+    new_due = current_due
+    guard = 0
+    while new_due <= today and guard < 1200:
+        new_due = advance_due_date(new_due, frequency)
+        guard += 1
+    return new_due

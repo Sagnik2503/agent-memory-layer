@@ -2,13 +2,16 @@ from fastapi import FastAPI, HTTPException
 from app.agent.state import ChatRequest, ChatResponse
 from langchain_core.messages import HumanMessage
 from app.agent.graph import create_agent_graph
+from app.config import DEFAULT_USER_ID
 from app.db.database import Base, engine
+from app.db.migrations import migrate_add_user_id
 from sqlalchemy.exc import SQLAlchemyError
 
 
 def init_db():
     try:
         Base.metadata.create_all(bind=engine)
+        migrate_add_user_id(engine, DEFAULT_USER_ID)
     except SQLAlchemyError as e:
         print(f"[error] Failed to initialize database: {e}")
 
@@ -40,7 +43,12 @@ async def chat(request: ChatRequest) -> ChatResponse:
         raise HTTPException(status_code=503, detail="Agent not initialized")
 
     try:
-        config = {"configurable": {"thread_id": request.thread_id}}
+        config = {
+            "configurable": {
+                "thread_id": request.thread_id,
+                "user_id": request.user_id or DEFAULT_USER_ID,
+            }
+        }
 
         result = expense_graph.invoke(
             {"messages": [HumanMessage(content=request.message)]},

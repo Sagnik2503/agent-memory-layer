@@ -1,5 +1,5 @@
 from datetime import date as DateType, datetime
-from sqlalchemy import Float, Date, String, Boolean, Numeric, DateTime, ForeignKey
+from sqlalchemy import Float, Date, String, Boolean, Numeric, DateTime, ForeignKey, Index
 from decimal import Decimal
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.database import Base
@@ -8,6 +8,7 @@ from app.db.database import Base
 class ExpenseDB(Base):
     __tablename__ = "expenses"
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     amount: Mapped[float] = mapped_column(Float)
     currency: Mapped[str | None] = mapped_column(String, nullable=True)
     merchant: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -20,10 +21,13 @@ class ExpenseDB(Base):
         nullable=True,
     )
 
+    __table_args__ = (Index("ix_expenses_user_date", "user_id", "date"),)
+
 
 class SubscriptionDB(Base):
     __tablename__ = "subscriptions"
     id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
 
     merchant: Mapped[str] = mapped_column(
         String(100),
@@ -73,10 +77,13 @@ class SubscriptionDB(Base):
         nullable=False,
     )
 
+    __table_args__ = (Index("ix_subscriptions_user_active", "user_id", "is_active"),)
+
 
 class BudgetDB(Base):
     __tablename__ = "budgets"
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
 
     category: Mapped[str | None] = mapped_column(
         String, nullable=True
@@ -94,10 +101,13 @@ class BudgetDB(Base):
         DateTime, onupdate=datetime.utcnow, nullable=True
     )
 
+    __table_args__ = (Index("ix_budgets_user_category_period", "user_id", "category", "period", unique=True),)
+
 
 class PendingAlertDB(Base):
     __tablename__ = "pending_alerts"
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
 
     type: Mapped[str] = mapped_column(String(50), nullable=False)
     message: Mapped[str] = mapped_column(String, nullable=False)
@@ -109,3 +119,5 @@ class PendingAlertDB(Base):
         DateTime, default=datetime.utcnow, nullable=False
     )
     seen_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    __table_args__ = (Index("ix_pending_alerts_user_seen", "user_id", "seen_at"),)

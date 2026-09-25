@@ -88,11 +88,13 @@ class ExpenseUpdate(BaseModel):
 
 class ExpenseDelete(BaseModel):
     expense_ids: list[int]
+    confirm: bool = False
 
 
 class ChatRequest(BaseModel):
     message: str
     thread_id: str
+    user_id: str | None = None
 
 
 class ChatResponse(BaseModel):
@@ -135,6 +137,7 @@ class SubscriptionUpdate(BaseModel):
 
 class SubscriptionDelete(BaseModel):
     subscription_ids: list[int]
+    confirm: bool = False
 
 
 class CreateSubscriptionsInput(BaseModel):

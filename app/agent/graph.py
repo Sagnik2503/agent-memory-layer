@@ -1,15 +1,16 @@
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.checkpoint.sqlite import SqliteSaver
 import sqlite3
 
-# from langgraph.checkpoint.memory import MemorySaver
-
+from app.config import DEFAULT_USER_ID
 from app.agent.state import AgentState
 from app.agent.tools import tools
-from app.agent.prompts import SYSTEM_PROMPT
+from app.agent.prompts import build_system_prompt
+from app.agent.context import build_proactive_context
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -26,6 +27,14 @@ llm = ChatOpenAI(
 llm_with_tools = llm.bind_tools(tools)
 
 
+def _user_id_from_config(config: RunnableConfig | None) -> str:
+    if config:
+        uid = (config.get("configurable") or {}).get("user_id")
+        if uid:
+            return str(uid)
+    return DEFAULT_USER_ID
+
+
 def extract_text(content) -> str:
     """Pull plain text out of a Responses API content list, without mutating it."""
     if isinstance(content, str):
@@ -33,14 +42,18 @@ def extract_text(content) -> str:
     return "\n".join(b.get("text", "") for b in content if b.get("type") == "text")
 
 
-def agent_node(state: AgentState):
+def agent_node(state: AgentState, config: RunnableConfig):
+    user_id = _user_id_from_config(config)
+    system_prompt = build_system_prompt(
+        proactive_context=build_proactive_context(user_id)
+    )
     messages = [
-        SystemMessage(content=SYSTEM_PROMPT),
+        SystemMessage(content=system_prompt),
         *state["messages"],
     ]
 
     try:
-        response = llm_with_tools.invoke(messages)
+        response = llm_with_tools.invoke(messages, config)
         for tc in response.tool_calls:
             print(f"[tool call] {tc['name']} {tc['args']}")
         return {"messages": [response]}
@@ -82,7 +95,9 @@ graph = create_agent_graph()
 
 
 def main():
-    config = {"configurable": {"thread_id": "local-user"}}
+    config = {
+        "configurable": {"thread_id": "local-user", "user_id": DEFAULT_USER_ID}
+    }
     while True:
         try:
             user = input("\nuser: ")
