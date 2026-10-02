@@ -296,8 +296,23 @@
     container.replaceChildren(list);
   }
 
-  function renderExpenseList(container, items, label) {
+  function renderExpenseList(container, items, label, filtersActive) {
     if (!items.length) {
+      if (filtersActive) {
+        // A filtered-empty month looks nothing like an empty month: say so,
+        // and offer the way back.
+        var match = el("div", "empty-match");
+        match.append(el("p", "muted", "No expenses match your filters."));
+        var clear = el("button", "clear-filters", "Clear filters");
+        clear.type = "button";
+        clear.addEventListener("click", function () {
+          resetExpenseFilters();
+          loadExpenses();
+        });
+        match.append(clear);
+        container.replaceChildren(match);
+        return;
+      }
       container.replaceChildren(
         el("p", "muted", "No expenses recorded for " + label + ".")
       );
@@ -343,21 +358,69 @@
     container.replaceChildren(table);
   }
 
-  function apiMonthUrl(path) {
-    return path + "?month=" + encodeURIComponent(activeMonth());
+  function apiMonthUrl(path, params) {
+    var search = new URLSearchParams(params || {});
+    search.set("month", activeMonth());
+    return path + "?" + search.toString();
   }
 
-  function fetchMonthData(path) {
-    return fetch(apiMonthUrl(path)).then(function (response) {
-      if (!response.ok) {
-        throw new Error(
-          response.status === 400
-            ? "The month should look like 2026-09."
-            : "The server returned " + response.status + "."
-        );
-      }
-      return response.json();
+  function fetchMonthData(path, params) {
+    return fetch(apiMonthUrl(path, params)).then(function (response) {
+      if (response.ok) return response.json();
+      // Prefer the server's own explanation (month format, unknown
+      // category) over a generic one: this helper serves several 400
+      // sources. A non-JSON body (5xx page) falls back to the status.
+      return response
+        .json()
+        .catch(function () {
+          return null;
+        })
+        .then(function (body) {
+          throw new Error(
+            body && body.detail
+              ? body.detail
+              : "The server returned " + response.status + "."
+          );
+        });
     });
+  }
+
+  var FILTER_DEBOUNCE_MS = 250;
+  var filterTimer = null;
+  var expenseRequest = 0;
+
+  function expenseFilters() {
+    var category = document.getElementById("filter-category");
+    var merchant = document.getElementById("filter-merchant");
+    var filters = {};
+    if (category && category.value) filters.category = category.value;
+    if (merchant && merchant.value.trim()) filters.q = merchant.value.trim();
+    return filters;
+  }
+
+  function clearFilterTimer() {
+    if (filterTimer) {
+      clearTimeout(filterTimer);
+      filterTimer = null;
+    }
+  }
+
+  function resetExpenseFilters() {
+    var category = document.getElementById("filter-category");
+    var merchant = document.getElementById("filter-merchant");
+    if (category) category.value = "";
+    if (merchant) merchant.value = "";
+    clearFilterTimer();
+  }
+
+  function reloadExpenses() {
+    clearFilterTimer();
+    loadExpenses();
+  }
+
+  function scheduleExpenseReload() {
+    clearFilterTimer();
+    filterTimer = setTimeout(reloadExpenses, FILTER_DEBOUNCE_MS);
   }
 
   function loadExpenses() {
@@ -365,19 +428,42 @@
     var expenseListNode = document.getElementById("expense-list");
     if (!totalsNode || !expenseListNode) return;
 
-    fetchMonthData("/api/expenses")
+    // Filter changes and month arrows both fetch; only the newest request
+    // may render, or a slow filtered response could land on another month.
+    var token = ++expenseRequest;
+    var filters = expenseFilters();
+    var filtersActive = Object.keys(filters).length > 0;
+
+    fetchMonthData("/api/expenses", filters)
       .then(function (data) {
+        if (token !== expenseRequest) return;
         var label = monthLabel(data.month);
         renderMonthLabels();
-        renderTotals(totalsNode, data.totals_by_currency || {}, label);
-        renderExpenseList(expenseListNode, data.items, label);
+        // Totals describe the rows on screen; when a filter matches nothing
+        // there is nothing to total, and the list carries the explanation.
+        if (filtersActive && !data.items.length) {
+          totalsNode.replaceChildren();
+        } else {
+          renderTotals(totalsNode, data.totals_by_currency || {}, label);
+        }
+        renderExpenseList(expenseListNode, data.items, label, filtersActive);
       })
       .catch(function (error) {
+        if (token !== expenseRequest) return;
         totalsNode.replaceChildren();
         expenseListNode.replaceChildren(
           el("p", "error", "Couldn't load expenses. " + error.message)
         );
       });
+  }
+
+  var categoryFilter = document.getElementById("filter-category");
+  var merchantFilter = document.getElementById("filter-merchant");
+  if (categoryFilter) {
+    categoryFilter.addEventListener("change", reloadExpenses);
+  }
+  if (merchantFilter) {
+    merchantFilter.addEventListener("input", scheduleExpenseReload);
   }
 
   function loadDashboard() {
@@ -425,6 +511,9 @@
   }
 
   function renderMonth() {
+    // Filters and search describe one month's view; stepping to another
+    // month starts from a clean slate.
+    resetExpenseFilters();
     syncNavLinks();
     renderMonthLabels();
     renderPage();

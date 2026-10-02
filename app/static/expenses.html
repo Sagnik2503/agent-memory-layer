@@ -24,6 +24,32 @@
       <p class="month-label" id="month-label">&nbsp;</p>
       <button type="button" class="month-nav-btn" data-month-step="1" aria-label="Next month">&#8250;</button>
     </div>
+    <div class="filters">
+      <label class="filter" for="filter-category">
+        <span class="filter-label">Category</span>
+        <select class="filter-control" id="filter-category">
+          <option value="">All categories</option>
+          <option value="food">food</option>
+          <option value="transport">transport</option>
+          <option value="shopping">shopping</option>
+          <option value="bills">bills</option>
+          <option value="entertainment">entertainment</option>
+          <option value="health">health</option>
+          <option value="personal_care">personal care</option>
+          <option value="other">other</option>
+        </select>
+      </label>
+      <label class="filter" for="filter-merchant">
+        <span class="filter-label">Merchant</span>
+        <input
+          class="filter-control"
+          id="filter-merchant"
+          type="search"
+          placeholder="Search merchants"
+          autocomplete="off"
+        >
+      </label>
+    </div>
     <div class="totals" id="totals" aria-live="polite"></div>
     <div class="expense-list" id="expense-list">
       <p class="muted" id="status">Loading expenses…</p>

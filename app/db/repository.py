@@ -367,9 +367,17 @@ def get_expenses_for_month(
     user_id: str,
     year: int,
     month: int,
-    currency: str | None = None
+    currency: str | None = None,
+    category: str | None = None,
+    merchant_contains: str | None = None,
 ) -> list[ExpenseDB]:
-    """Fetch all expenses for a specific month."""
+    """Fetch all expenses for a specific month.
+
+    ``category`` is one canonical ExpenseCategory value (validated by the
+    caller) and ``merchant_contains`` a merchant substring to match
+    case-insensitively, with LIKE wildcards treated literally. Both combine
+    with the month scope rather than replacing it.
+    """
     db = Sessionlocal()
     try:
         query = db.query(ExpenseDB).filter(
@@ -379,6 +387,15 @@ def get_expenses_for_month(
         )
         if currency:
             query = query.filter(ExpenseDB.currency == currency)
+        if category:
+            # Column side is lowercased so legacy rows still match.
+            query = query.filter(func.lower(ExpenseDB.category) == category)
+        if merchant_contains:
+            query = query.filter(
+                func.lower(ExpenseDB.merchant).contains(
+                    merchant_contains.lower(), autoescape=True
+                )
+            )
         # Newest first: date desc, then id desc so same-day rows keep a
         # deterministic insertion order (the dashboard's recent list relies
         # on this ordering).

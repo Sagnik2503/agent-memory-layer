@@ -5,7 +5,7 @@ import re
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from app.agent.state import BudgetInput, ChatRequest, ChatResponse
+from app.agent.state import BudgetInput, ChatRequest, ChatResponse, ExpenseCategory
 from app.analytics import get_budget_status, get_category_breakdown
 from langchain_core.messages import HumanMessage
 from app.agent.graph import create_agent_graph
@@ -71,13 +71,36 @@ MONTH_PATTERN = re.compile(r"\d{4}-(0[1-9]|1[0-2])")
 def _parse_month(month: str | None) -> str:
     month = month or date.today().strftime("%Y-%m")
     if not MONTH_PATTERN.fullmatch(month):
-        raise HTTPException(status_code=400, detail="month must be in YYYY-MM format")
+        raise HTTPException(
+            status_code=400,
+            detail="month must be in YYYY-MM format, e.g. 2026-09",
+        )
     return month
 
 
-def _rows_for_month(month: str):
+def _parse_category(category: str | None) -> str | None:
+    """Validate a category filter against the canonical vocabulary.
+
+    Empty means "no filter". Anything outside ExpenseCategory is a 400, so
+    the API only accepts the vocabulary the agent records — the error names
+    every valid value.
+    """
+    if not category:
+        return None
+    try:
+        return ExpenseCategory(category).value
+    except ValueError:
+        allowed = ", ".join(c.value for c in ExpenseCategory)
+        raise HTTPException(
+            status_code=400, detail=f"category must be one of: {allowed}"
+        )
+
+
+def _rows_for_month(month: str, category: str | None = None, q: str | None = None):
     year, month_num = (int(part) for part in month.split("-"))
-    return get_expenses_for_month(DEFAULT_USER_ID, year, month_num)
+    return get_expenses_for_month(
+        DEFAULT_USER_ID, year, month_num, category=category, merchant_contains=q
+    )
 
 
 def _group_by_currency(rows) -> dict[str, list]:
@@ -100,15 +123,20 @@ def _expense_item(row) -> dict:
     """Display fields for one Expense row.
 
     Shared by GET /api/expenses and the dashboard's recent list so both
-    surfaces render identical data.
+    surfaces render identical data. ``from_subscription`` records that the
+    Expense originated from a Subscription (the agent's two-phase flow is
+    what created it), never a UI-side mutation.
     """
     return {
+        "id": row.id,
         "date": row.date.isoformat() if row.date else None,
         "merchant": row.merchant,
         "category": row.category,
         "subcategory": row.subcategory,
         "amount": row.amount,
         "currency": row.currency,
+        "description": row.description,
+        "from_subscription": row.subscription_id is not None,
     }
 
 
@@ -189,9 +217,13 @@ def _budget_statuses(month: str) -> list[dict]:
 
 
 @app.get("/api/expenses")
-def list_expenses(month: str | None = None):
+def list_expenses(
+    month: str | None = None, category: str | None = None, q: str | None = None
+):
     month = _parse_month(month)
-    rows = _rows_for_month(month)
+    category = _parse_category(category)
+    q = (q or "").strip() or None
+    rows = _rows_for_month(month, category=category, q=q)
     return {
         "month": month,
         "items": [_expense_item(row) for row in rows],

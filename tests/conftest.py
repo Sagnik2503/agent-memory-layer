@@ -178,7 +178,8 @@ def seed_subscriptions():
 
     Each row needs merchant, amount, currency, category, frequency and
     next_due_date; ``user_id`` is filled in. Declare this fixture after
-    ``seeded_db`` so the seed's cleanup runs first.
+    ``seeded_db`` so the seed's cleanup runs first. Returns the created
+    rows so a test can link an Expense to a Subscription's id.
     """
     from app.db.database import Sessionlocal
     from app.db.models import SubscriptionDB
@@ -186,9 +187,14 @@ def seed_subscriptions():
     def _seed(rows):
         with Sessionlocal() as db:
             db.query(SubscriptionDB).delete()
-            for row in rows:
-                db.add(SubscriptionDB(user_id=DEFAULT_USER_ID, **row))
+            created = [
+                SubscriptionDB(user_id=DEFAULT_USER_ID, **row) for row in rows
+            ]
+            db.add_all(created)
             db.commit()
+            for subscription in created:
+                db.refresh(subscription)
+            return created
 
     return _seed
 
