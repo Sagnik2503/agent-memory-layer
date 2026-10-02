@@ -57,6 +57,20 @@
       </section>
     </div>
   </main>
+  <button type="button" class="chat-fab" id="chat-toggle" aria-expanded="false" aria-controls="chat-panel">Chat</button>
+  <aside class="chat-panel" id="chat-panel" aria-label="Chat" hidden>
+    <div class="chat-head">
+      <h2 class="chat-title">Chat</h2>
+      <button type="button" class="chat-close" id="chat-close" aria-label="Close chat panel">&#215;</button>
+    </div>
+    <div class="chat-log" id="chat-log" aria-live="polite">
+      <p class="muted chat-empty">Record spending or ask a question &mdash; e.g. &ldquo;I spent &#8377;500 on lunch&rdquo;.</p>
+    </div>
+    <form class="chat-composer" id="chat-composer">
+      <input type="text" class="chat-input" id="chat-input" placeholder="I spent &#8377;500 on lunch&hellip;" autocomplete="off" aria-label="Message">
+      <button type="submit" class="chat-send" id="chat-send">Send</button>
+    </form>
+  </aside>
   <script src="/static/app.js"></script>
 </body>
 </html>
