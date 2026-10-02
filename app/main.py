@@ -11,7 +11,7 @@ from langchain_core.messages import HumanMessage
 from app.agent.graph import create_agent_graph
 from app.config import DEFAULT_USER_ID
 from app.db.database import Base, engine
-from app.db.migrations import migrate_add_user_id
+from app.db.migrations import migrate_add_user_id, migrate_normalize_categories
 from app.db.repository import (
     get_budgets_for_period,
     get_expenses_for_month,
@@ -26,6 +26,7 @@ def init_db():
     try:
         Base.metadata.create_all(bind=engine)
         migrate_add_user_id(engine, DEFAULT_USER_ID)
+        migrate_normalize_categories(engine)
     except SQLAlchemyError as e:
         print(f"[error] Failed to initialize database: {e}")
 

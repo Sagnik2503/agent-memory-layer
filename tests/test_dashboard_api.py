@@ -315,6 +315,44 @@ def test_dashboard_empty_month_keeps_bills_anchored_to_today(
     assert data["upcoming_bills"][0]["overdue"] is False
 
 
+def test_dashboard_first_start_normalizes_a_stray_subscription_category(
+    client, seeded_db, seed_subscriptions
+):
+    """A legacy Subscription whose category predates the enum (spec: normalize
+    the stray "Subscriptions" to `bills`) must not take down the dashboard's
+    upcoming bills on the first server start against that database."""
+    from app.main import init_db
+
+    today = date.today()
+    seed_subscriptions(
+        [
+            {
+                "merchant": "Apple iCloud Storage",
+                "amount": 219.0,
+                "currency": "INR",
+                "category": "Subscriptions",
+                "subcategory": None,
+                "frequency": "monthly",
+                "next_due_date": today + timedelta(days=2),
+            }
+        ]
+    )
+
+    init_db()
+
+    response = client.get("/api/dashboard")
+
+    assert response.status_code == 200
+    bills = response.json()["upcoming_bills"]
+    assert [b["merchant"] for b in bills] == ["Apple iCloud Storage"]
+
+    from app.db.database import Sessionlocal
+    from app.db.models import SubscriptionDB
+
+    with Sessionlocal() as db:
+        assert db.query(SubscriptionDB).one().category == "bills"
+
+
 def _budgets_by_category(data):
     return {status["category"]: status for status in data["budget_statuses"]}
 
