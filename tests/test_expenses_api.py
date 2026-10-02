@@ -26,7 +26,7 @@ def test_static_pages_are_served_with_navigation(client):
 
 
 def test_pages_not_yet_built_render_honest_placeholders(client):
-    for path in ("/", "/budgets"):
+    for path in ("/budgets",):
         response = client.get(path)
         assert response.status_code == 200, path
         assert "Coming soon" in response.text, path

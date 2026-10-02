@@ -19,9 +19,16 @@
   </header>
   <main class="page">
     <h1>Dashboard</h1>
-    <section class="placeholder">
-      <p class="placeholder-lead">Coming soon — this month's totals by currency, budget status bars, upcoming bills, and your latest expenses.</p>
-      <p class="muted">Until then, the <a href="/expenses">Expenses page</a> lists everything recorded this month.</p>
+    <div class="month-nav">
+      <button type="button" class="month-nav-btn" data-month-step="-1" aria-label="Previous month">&#8249;</button>
+      <p class="month-label" id="month-label">&nbsp;</p>
+      <button type="button" class="month-nav-btn" data-month-step="1" aria-label="Next month">&#8250;</button>
+    </div>
+    <section class="card">
+      <h2 class="card-title">Spending this month</h2>
+      <div class="totals" id="dashboard-totals" aria-live="polite">
+        <p class="muted">Loading this month&rsquo;s totals&hellip;</p>
+      </div>
     </section>
   </main>
   <script src="/static/app.js"></script>

@@ -57,20 +57,36 @@ def budgets_page():
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
+MONTH_PATTERN = re.compile(r"\d{4}-(0[1-9]|1[0-2])")
+
+
+def _parse_month(month: str | None) -> str:
+    month = month or date.today().strftime("%Y-%m")
+    if not MONTH_PATTERN.fullmatch(month):
+        raise HTTPException(status_code=400, detail="month must be in YYYY-MM format")
+    return month
+
+
+def _rows_for_month(month: str):
+    year, month_num = (int(part) for part in month.split("-"))
+    return get_expenses_for_month(DEFAULT_USER_ID, year, month_num)
+
+
+def _totals_by_currency(rows) -> dict[str, float]:
+    """Group amounts by currency. Currencies are never summed together."""
+    totals: dict[str, float] = {}
+    for row in rows:
+        code = row.currency or "INR"
+        totals[code] = totals.get(code, 0.0) + row.amount
+    return totals
+
 
 @app.get("/api/expenses")
 def list_expenses(month: str | None = None):
-    month = month or date.today().strftime("%Y-%m")
-    if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", month):
-        raise HTTPException(status_code=400, detail="month must be in YYYY-MM format")
-    year, month_num = (int(part) for part in month.split("-"))
-    rows = get_expenses_for_month(DEFAULT_USER_ID, year, month_num)
-    totals_by_currency: dict[str, float] = {}
+    month = _parse_month(month)
+    rows = _rows_for_month(month)
     items = []
     for row in rows:
-        totals_by_currency[row.currency or "INR"] = (
-            totals_by_currency.get(row.currency or "INR", 0.0) + row.amount
-        )
         items.append(
             {
                 "date": row.date.isoformat() if row.date else None,
@@ -84,7 +100,18 @@ def list_expenses(month: str | None = None):
     return {
         "month": month,
         "items": items,
-        "totals_by_currency": totals_by_currency,
+        "totals_by_currency": _totals_by_currency(rows),
+    }
+
+
+@app.get("/api/dashboard")
+def dashboard_summary(month: str | None = None):
+    """Monthly summary for the requested month, defaulting to the current month."""
+    month = _parse_month(month)
+    rows = _rows_for_month(month)
+    return {
+        "month": month,
+        "totals_by_currency": _totals_by_currency(rows),
     }
 
 

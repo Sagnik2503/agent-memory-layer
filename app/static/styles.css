@@ -108,6 +108,50 @@ h1 {
   font-size: 0.95rem;
 }
 
+.month-nav {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 0 28px;
+}
+
+.month-nav .month-label {
+  margin: 0;
+  min-width: 15ch;
+}
+
+.month-nav-btn {
+  appearance: none;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.month-nav-btn:hover {
+  background: var(--row-hover);
+  border-color: var(--muted);
+}
+
+.month-nav-btn:active {
+  transform: scale(0.98);
+}
+
+.month-nav-btn:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
 .muted {
   color: var(--muted);
 }
@@ -158,6 +202,33 @@ h1 {
   font-family: var(--mono);
   font-size: 0.72rem;
   letter-spacing: 0.05em;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 28px;
+  margin: 0 0 24px;
+}
+
+.card-title {
+  margin: 0 0 18px;
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.card .totals {
+  margin: 0;
+}
+
+.empty-state {
+  margin: 0;
+  flex: 1 0 100%;
 }
 
 .pill-inr {

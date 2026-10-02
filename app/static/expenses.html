@@ -19,7 +19,11 @@
   </header>
   <main class="page">
     <h1>Expenses</h1>
-    <p class="month-label" id="month-label">&nbsp;</p>
+    <div class="month-nav">
+      <button type="button" class="month-nav-btn" data-month-step="-1" aria-label="Previous month">&#8249;</button>
+      <p class="month-label" id="month-label">&nbsp;</p>
+      <button type="button" class="month-nav-btn" data-month-step="1" aria-label="Next month">&#8250;</button>
+    </div>
     <div class="totals" id="totals" aria-live="polite"></div>
     <div class="expense-list" id="expense-list">
       <p class="muted" id="status">Loading expenses…</p>
