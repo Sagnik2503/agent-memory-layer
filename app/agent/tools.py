@@ -40,6 +40,7 @@ from app.db.repository import (
     get_subscriptions_due_within,
     advance_subscription_due_date,
     advance_due_date,
+    to_expense_results,
 )
 from app.analytics import (
     get_monthly_summary,
@@ -62,23 +63,6 @@ def _user_id(config: RunnableConfig | None) -> str:
 
 def _freq_str(frequency) -> str:
     return frequency.value if hasattr(frequency, "value") else str(frequency)
-
-
-def _db_to_expense_results(expenses) -> list[ExpenseResult]:
-    """Convert database expense objects to ExpenseResult models."""
-    return [
-        ExpenseResult(
-            id=e.id,
-            amount=e.amount,
-            currency=e.currency,
-            merchant=e.merchant,
-            category=e.category,
-            subcategory=e.subcategory,
-            date=e.date,
-            description=e.description,
-        )
-        for e in expenses
-    ]
 
 
 def _group_by_currency(expenses: list[ExpenseResult]) -> dict[str, list[ExpenseResult]]:
@@ -146,7 +130,7 @@ def _budget_warnings(user_id: str) -> list[str]:
             BudgetInput(category=b.category, amount=b.amount, period=b.period)
             for b in budgets_db
         ]
-        expenses = _db_to_expense_results(
+        expenses = to_expense_results(
             get_expenses_for_month(user_id, today.year, today.month)
         )
         warnings = []
@@ -231,7 +215,7 @@ def get_expenses_tool(
 
         expenses = get_expense(uid, expense_query)
 
-        results = _db_to_expense_results(expenses)
+        results = to_expense_results(expenses)
         print(f"[tool output] {len(results)} expense(s) found")
         return results
     except Exception as e:
@@ -282,7 +266,7 @@ def update_expenses_tool(
         if not updated_expenses:
             result = "No expenses were found to update."
         else:
-            result = f"Updated {len(updated_expenses)} expense(s):\n{_expense_preview(_db_to_expense_results(updated_expenses))}"
+            result = f"Updated {len(updated_expenses)} expense(s):\n{_expense_preview(to_expense_results(updated_expenses))}"
         if not_found:
             result += f"\nNot found (skipped): {sorted(not_found)}"
         warnings = _budget_warnings(uid)
@@ -608,7 +592,7 @@ def get_monthly_summary_tool(
             month = date.today().strftime("%Y-%m")
 
         year, month_num = map(int, month.split("-"))
-        expenses = _db_to_expense_results(
+        expenses = to_expense_results(
             get_expenses_for_month(uid, year, month_num, currency)
         )
 
@@ -665,7 +649,7 @@ def get_category_breakdown_tool(
             month = date.today().strftime("%Y-%m")
 
         year, month_num = map(int, month.split("-"))
-        expenses = _db_to_expense_results(
+        expenses = to_expense_results(
             get_expenses_for_month(uid, year, month_num, currency)
         )
 
@@ -710,7 +694,7 @@ def get_budget_status_tool(
             for b in budgets_db
         ]
 
-        expenses = _db_to_expense_results(
+        expenses = to_expense_results(
             get_expenses_for_month(uid, today.year, today.month, currency)
         )
 
@@ -769,11 +753,11 @@ def compare_months_tool(
         uid = _user_id(config)
 
         year1, month_num1 = map(int, month1.split("-"))
-        expenses1 = _db_to_expense_results(
+        expenses1 = to_expense_results(
             get_expenses_for_month(uid, year1, month_num1, currency)
         )
         year2, month_num2 = map(int, month2.split("-"))
-        expenses2 = _db_to_expense_results(
+        expenses2 = to_expense_results(
             get_expenses_for_month(uid, year2, month_num2, currency)
         )
 
@@ -845,7 +829,7 @@ def get_spending_by_merchant_tool(
             month = date.today().strftime("%Y-%m")
 
         year, month_num = map(int, month.split("-"))
-        expenses = _db_to_expense_results(
+        expenses = to_expense_results(
             get_expenses_for_month(uid, year, month_num, currency)
         )
 

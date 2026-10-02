@@ -3,25 +3,10 @@ from app.db.repository import (
     get_subscriptions_due_within,
     get_budgets_for_period,
     get_expenses_for_month,
+    to_expense_results,
 )
 from app.analytics import get_budget_status
-from app.agent.state import BudgetInput, ExpenseResult
-
-
-def _expense_results(expenses) -> list[ExpenseResult]:
-    return [
-        ExpenseResult(
-            id=e.id,
-            amount=e.amount,
-            currency=e.currency,
-            merchant=e.merchant,
-            category=e.category,
-            subcategory=e.subcategory,
-            date=e.date,
-            description=e.description,
-        )
-        for e in expenses
-    ]
+from app.agent.state import BudgetInput
 
 
 def build_proactive_context(user_id: str) -> str:
@@ -56,7 +41,7 @@ def build_proactive_context(user_id: str) -> str:
                 BudgetInput(category=b.category, amount=b.amount, period=b.period)
                 for b in budgets_db
             ]
-            expenses = _expense_results(
+            expenses = to_expense_results(
                 get_expenses_for_month(user_id, today.year, today.month)
             )
             for status in get_budget_status(budgets, expenses):

@@ -104,20 +104,51 @@ def build_seed_expenses(today: date | None = None) -> list[dict]:
 
 @pytest.fixture()
 def seeded_db():
-    """Recreate the expenses table and insert the seed rows for one test."""
+    """Recreate the expenses table and insert the seed rows for one test.
+
+    Budgets are cleared too, so every test starts from zero budgets and can
+    seed its own via the seed_budgets fixture.
+    """
     from app.db.database import Base, Sessionlocal, engine
-    from app.db.models import ExpenseDB
+    from app.db.models import BudgetDB, ExpenseDB
 
     Base.metadata.create_all(bind=engine)
 
     rows = build_seed_expenses()
     with Sessionlocal() as db:
         db.query(ExpenseDB).delete()
+        db.query(BudgetDB).delete()
         for row in rows:
             db.add(ExpenseDB(**row))
         db.commit()
 
     return rows
+
+
+@pytest.fixture()
+def seed_budgets():
+    """Replace the user's monthly budgets with (category, amount) rows.
+
+    ``category`` of None is the overall Budget (see GLOSSARY.md).
+    """
+    from app.db.database import Sessionlocal
+    from app.db.models import BudgetDB
+
+    def _seed(rows):
+        with Sessionlocal() as db:
+            db.query(BudgetDB).delete()
+            for category, amount in rows:
+                db.add(
+                    BudgetDB(
+                        user_id=DEFAULT_USER_ID,
+                        category=category,
+                        amount=amount,
+                        period="monthly",
+                    )
+                )
+            db.commit()
+
+    return _seed
 
 
 @pytest.fixture()

@@ -6,6 +6,8 @@ against the isolated seeded database set up in conftest.py.
 
 from datetime import date, timedelta
 
+import pytest
+
 
 def _previous_month(today: date | None = None) -> str:
     today = today or date.today()
@@ -96,3 +98,129 @@ def test_month_navigation_arrows_appear_on_every_page(client):
         assert 'data-month-step="-1"' in html, path
         assert 'data-month-step="1"' in html, path
         assert 'id="month-label"' in html, path
+
+
+def _budgets_by_category(data):
+    return {status["category"]: status for status in data["budget_statuses"]}
+
+
+def test_dashboard_reports_budget_statuses_straddling_the_threshold_and_the_limit(
+    client, seeded_db, seed_budgets
+):
+    # bills sits below the 80% warning threshold (70%), food sits above it but
+    # under the limit (83.3%), the overall Budget is past its limit (117.5%).
+    seed_budgets([(None, 2000.0), ("food", 300.0), ("bills", 3000.0)])
+
+    response = client.get("/api/dashboard")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["budget_statuses"]) == 3
+
+    overall = _budgets_by_category(data)[None]
+    assert overall["budget_amount"] == 2000.0
+    assert overall["spent_amount"] == 2350.0
+    assert overall["remaining"] == -350.0
+    assert overall["percentage_used"] == pytest.approx(117.5)
+    assert overall["is_over_budget"] is True
+
+    food = _budgets_by_category(data)["food"]
+    assert food["budget_amount"] == 300.0
+    assert food["spent_amount"] == 250.0
+    assert food["remaining"] == 50.0
+    assert food["percentage_used"] == pytest.approx(83.3333, rel=1e-4)
+    assert food["is_over_budget"] is False
+
+    bills = _budgets_by_category(data)["bills"]
+    assert bills["budget_amount"] == 3000.0
+    assert bills["spent_amount"] == 2100.0
+    assert bills["remaining"] == 900.0
+    assert bills["percentage_used"] == pytest.approx(70.0)
+    assert bills["is_over_budget"] is False
+
+
+def test_dashboard_budget_spent_respects_the_per_currency_rule(
+    client, seeded_db, seed_budgets
+):
+    # Budgets are single-currency limits (INR): the month's USD spending
+    # ($138.75) must never be added to them, and a budget whose category only
+    # has USD spending counts as untouched rather than over budget.
+    seed_budgets([(None, 2000.0), ("shopping", 100.0)])
+
+    response = client.get("/api/dashboard")
+
+    assert response.status_code == 200
+    data = response.json()
+    by_category = _budgets_by_category(data)
+
+    overall = by_category[None]
+    assert overall["spent_amount"] == 2350.0
+    assert overall["currency"] == "INR"
+    assert overall["spent_amount"] + 138.75 not in _numbers(data)
+
+    shopping = by_category["shopping"]
+    assert shopping["spent_amount"] == 0.0
+    assert shopping["remaining"] == 100.0
+    assert shopping["percentage_used"] == 0.0
+    assert shopping["is_over_budget"] is False
+
+
+def test_dashboard_budget_spent_is_scoped_to_the_requested_month(
+    client, seeded_db, seed_budgets
+):
+    seed_budgets([(None, 2000.0)])
+
+    current = client.get("/api/dashboard").json()["budget_statuses"][0]
+    past = client.get(
+        "/api/dashboard", params={"month": _previous_month()}
+    ).json()["budget_statuses"][0]
+
+    assert current["spent_amount"] == 2350.0
+    assert current["is_over_budget"] is True
+    assert past["spent_amount"] == 1050.0
+    assert past["is_over_budget"] is False
+    assert past["percentage_used"] == pytest.approx(52.5)
+
+
+def test_dashboard_budget_sitting_exactly_at_the_limit_is_not_flagged_over(
+    client, seeded_db, seed_budgets
+):
+    seed_budgets([("bills", 2100.0)])
+
+    response = client.get("/api/dashboard")
+
+    bills = _budgets_by_category(response.json())["bills"]
+    assert bills["percentage_used"] == pytest.approx(100.0)
+    assert bills["remaining"] == 0.0
+    assert bills["is_over_budget"] is False
+
+
+def test_dashboard_budget_at_exactly_the_warning_threshold_reports_80_percent(
+    client, seeded_db, seed_budgets
+):
+    seed_budgets([("food", 312.5)])
+
+    response = client.get("/api/dashboard")
+
+    food = _budgets_by_category(response.json())["food"]
+    assert food["percentage_used"] == pytest.approx(80.0)
+    assert food["is_over_budget"] is False
+
+
+def test_dashboard_reports_an_empty_budget_list_when_no_budgets_are_set(
+    client, seeded_db
+):
+    response = client.get("/api/dashboard")
+
+    assert response.status_code == 200
+    assert response.json()["budget_statuses"] == []
+
+
+def test_dashboard_page_has_a_budget_status_container(client):
+    response = client.get("/")
+    assert response.status_code == 200
+    assert 'id="dashboard-budgets"' in response.text
+
+    script = client.get("/static/app.js")
+    assert script.status_code == 200
+    assert "budget_statuses" in script.text

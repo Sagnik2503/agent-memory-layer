@@ -346,6 +346,23 @@ def get_all_budgets(user_id: str) -> list[dict]:
         db.close()
 
 
+def to_expense_results(rows) -> list[ExpenseResult]:
+    """Map ExpenseDB rows to ExpenseResult domain models."""
+    return [
+        ExpenseResult(
+            id=r.id,
+            amount=r.amount,
+            currency=r.currency,
+            merchant=r.merchant,
+            category=r.category,
+            subcategory=r.subcategory,
+            date=r.date,
+            description=r.description,
+        )
+        for r in rows
+    ]
+
+
 def get_expenses_for_month(
     user_id: str,
     year: int,

@@ -106,6 +106,81 @@
     });
   }
 
+  var BUDGET_WARNING_PERCENT = 80;
+
+  function budgetLabel(category) {
+    return category ? category.replace(/_/g, " ") : "Overall";
+  }
+
+  function renderBudgetStatus(container, statuses) {
+    if (!statuses.length) {
+      container.replaceChildren(el("p", "muted empty-state", "No budgets set."));
+      return;
+    }
+
+    container.replaceChildren();
+    statuses.forEach(function (status) {
+      var percent = Math.max(0, status.percentage_used);
+      var isOver = !!status.is_over_budget;
+      var isWarn = !isOver && percent >= BUDGET_WARNING_PERCENT;
+      var currency = status.currency;
+      var label = budgetLabel(status.category);
+
+      var item = el(
+        "div",
+        "budget" + (isOver ? " budget-over" : isWarn ? " budget-warn" : "")
+      );
+
+      var head = el("div", "budget-head");
+      head.append(
+        el("span", "budget-label", label),
+        el(
+          "span",
+          "budget-figures mono",
+          formatMoney(status.spent_amount, currency) +
+            " of " +
+            formatMoney(status.budget_amount, currency)
+        )
+      );
+
+      var track = el("div", "budget-track");
+      track.setAttribute("role", "progressbar");
+      track.setAttribute("aria-label", label + " budget");
+      track.setAttribute("aria-valuemin", "0");
+      track.setAttribute("aria-valuemax", "100");
+      track.setAttribute("aria-valuenow", String(Math.min(Math.round(percent), 100)));
+      var fill = el("div", "budget-fill");
+      fill.style.width = Math.min(percent, 100) + "%";
+      track.append(fill);
+
+      var foot = el("div", "budget-foot");
+      foot.append(el("span", "budget-pct mono", Math.round(percent) + "% used"));
+      if (isOver) {
+        foot.append(
+          el(
+            "span",
+            "budget-note",
+            formatMoney(status.spent_amount - status.budget_amount, currency) +
+              " over"
+          )
+        );
+      } else if (isWarn) {
+        foot.append(el("span", "budget-note", "Near limit"));
+      } else {
+        foot.append(
+          el(
+            "span",
+            "budget-note muted",
+            formatMoney(status.remaining, currency) + " left"
+          )
+        );
+      }
+
+      item.append(head, track, foot);
+      container.append(item);
+    });
+  }
+
   function renderExpenseList(container, items, label) {
     if (!items.length) {
       container.replaceChildren(
@@ -192,7 +267,8 @@
 
   function loadDashboard() {
     var totalsNode = document.getElementById("dashboard-totals");
-    if (!totalsNode) return;
+    var budgetsNode = document.getElementById("dashboard-budgets");
+    if (!totalsNode || !budgetsNode) return;
 
     fetchMonthData("/api/dashboard")
       .then(function (data) {
@@ -202,11 +278,12 @@
           data.totals_by_currency || {},
           monthLabel(data.month)
         );
+        renderBudgetStatus(budgetsNode, data.budget_statuses || []);
       })
       .catch(function (error) {
-        totalsNode.replaceChildren(
-          el("p", "error", "Couldn't load the dashboard. " + error.message)
-        );
+        var message = "Couldn't load the dashboard. " + error.message;
+        totalsNode.replaceChildren(el("p", "error", message));
+        budgetsNode.replaceChildren(el("p", "error", message));
       });
   }
 

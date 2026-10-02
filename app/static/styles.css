@@ -13,6 +13,8 @@
   --pill-usd-bg: #e1f3fe;
   --pill-usd-ink: #1f6c9f;
   --error-ink: #9f2f2d;
+  --warn-fill: #c08a1e;
+  --warn-ink: #8a5d10;
   --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", sans-serif;
   --serif: Georgia, "Iowan Old Style", "Times New Roman", serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -224,6 +226,76 @@ h1 {
 
 .card .totals {
   margin: 0;
+}
+
+.budget-list {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+.budget-head,
+.budget-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.budget-head {
+  margin-bottom: 8px;
+}
+
+.budget-label {
+  font-weight: 600;
+}
+
+.budget-figures {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.budget-track {
+  height: 8px;
+  border-radius: 9999px;
+  background: var(--pill-bg);
+  overflow: hidden;
+}
+
+.budget-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ink);
+  transition: width 0.3s ease;
+}
+
+.budget-foot {
+  margin-top: 8px;
+}
+
+.budget-pct,
+.budget-note {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.budget-warn .budget-fill {
+  background: var(--warn-fill);
+}
+
+.budget-warn .budget-pct,
+.budget-warn .budget-note {
+  color: var(--warn-ink);
+}
+
+.budget-over .budget-fill {
+  background: var(--error-ink);
+}
+
+.budget-over .budget-pct,
+.budget-over .budget-note {
+  color: var(--error-ink);
+  font-weight: 600;
 }
 
 .empty-state {

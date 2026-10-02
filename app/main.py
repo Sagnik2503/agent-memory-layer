@@ -5,13 +5,18 @@ import re
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from app.agent.state import ChatRequest, ChatResponse
+from app.agent.state import BudgetInput, ChatRequest, ChatResponse
+from app.analytics import get_budget_status
 from langchain_core.messages import HumanMessage
 from app.agent.graph import create_agent_graph
 from app.config import DEFAULT_USER_ID
 from app.db.database import Base, engine
 from app.db.migrations import migrate_add_user_id
-from app.db.repository import get_expenses_for_month
+from app.db.repository import (
+    get_budgets_for_period,
+    get_expenses_for_month,
+    to_expense_results,
+)
 from sqlalchemy.exc import SQLAlchemyError
 
 
@@ -81,6 +86,34 @@ def _totals_by_currency(rows) -> dict[str, float]:
     return totals
 
 
+BUDGET_CURRENCY = "INR"
+
+
+def _budget_statuses(month: str) -> list[dict]:
+    """Budget status for the requested month, for the Budgets page to reuse.
+
+    Mirrors the agent's get_budget_status_tool: a Budget is a single-currency
+    limit measured in BUDGET_CURRENCY, so only that currency's expenses count
+    as spent — expenses in other currencies are excluded (per-currency rule).
+    Category budgets come first (alphabetical), the overall Budget (no
+    category) last, matching a totals row.
+    """
+    year, month_num = (int(part) for part in month.split("-"))
+    budgets = [
+        BudgetInput(category=b.category, amount=b.amount, period=b.period)
+        for b in get_budgets_for_period(DEFAULT_USER_ID, "monthly")
+    ]
+    expenses = to_expense_results(
+        get_expenses_for_month(DEFAULT_USER_ID, year, month_num, BUDGET_CURRENCY)
+    )
+    statuses = get_budget_status(budgets, expenses)
+    statuses.sort(key=lambda s: (s.category is None, s.category or ""))
+    return [
+        {**status.model_dump(), "currency": BUDGET_CURRENCY}
+        for status in statuses
+    ]
+
+
 @app.get("/api/expenses")
 def list_expenses(month: str | None = None):
     month = _parse_month(month)
@@ -112,6 +145,7 @@ def dashboard_summary(month: str | None = None):
     return {
         "month": month,
         "totals_by_currency": _totals_by_currency(rows),
+        "budget_statuses": _budget_statuses(month),
     }
 
 
