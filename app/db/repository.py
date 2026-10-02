@@ -379,7 +379,10 @@ def get_expenses_for_month(
         )
         if currency:
             query = query.filter(ExpenseDB.currency == currency)
-        expenses = query.order_by(ExpenseDB.date.desc()).all()
+        # Newest first: date desc, then id desc so same-day rows keep a
+        # deterministic insertion order (the dashboard's recent list relies
+        # on this ordering).
+        expenses = query.order_by(ExpenseDB.date.desc(), ExpenseDB.id.desc()).all()
         return expenses
     except Exception:
         db.rollback()
@@ -501,6 +504,25 @@ def get_subscriptions_due_within(
         raise
     finally:
         db.close()
+
+
+def upcoming_bill(subscription: SubscriptionResponse, today: date) -> dict:
+    """Display shape for one due Subscription.
+
+    The single source of the "upcoming bill" payload, shared by
+    GET /api/dashboard and the agent's get_upcoming_bills_tool so the
+    dashboard and chat can never disagree — including the overdue rule
+    (a bill is overdue when its next due date is before today).
+    """
+    return {
+        "id": subscription.id,
+        "merchant": subscription.merchant,
+        "amount": float(subscription.amount),
+        "currency": subscription.currency,
+        "due_date": subscription.next_due_date.isoformat(),
+        "frequency": subscription.frequency.value,
+        "overdue": subscription.next_due_date < today,
+    }
 
 
 def advance_subscription_due_date(

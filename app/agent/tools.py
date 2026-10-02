@@ -41,6 +41,7 @@ from app.db.repository import (
     advance_subscription_due_date,
     advance_due_date,
     to_expense_results,
+    upcoming_bill,
 )
 from app.analytics import (
     get_monthly_summary,
@@ -863,18 +864,7 @@ def get_upcoming_bills_tool(
         uid = _user_id(config)
         today = date.today()
         subscriptions = get_subscriptions_due_within(uid, within_days=days_ahead)
-        result = [
-            {
-                "id": s.id,
-                "merchant": s.merchant,
-                "amount": float(s.amount),
-                "currency": s.currency,
-                "due_date": s.next_due_date.isoformat(),
-                "frequency": _freq_str(s.frequency),
-                "overdue": s.next_due_date < today,
-            }
-            for s in subscriptions
-        ]
+        result = [upcoming_bill(s, today) for s in subscriptions]
         print(f"[tool output] {len(result)} bill(s) due within {days_ahead} day(s)")
         return result
     except Exception as e:

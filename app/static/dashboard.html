@@ -24,18 +24,38 @@
       <p class="month-label" id="month-label">&nbsp;</p>
       <button type="button" class="month-nav-btn" data-month-step="1" aria-label="Next month">&#8250;</button>
     </div>
-    <section class="card">
-      <h2 class="card-title">Spending this month</h2>
-      <div class="totals" id="dashboard-totals" aria-live="polite">
-        <p class="muted">Loading this month&rsquo;s totals&hellip;</p>
-      </div>
-    </section>
-    <section class="card">
-      <h2 class="card-title">Budget status</h2>
-      <div class="budget-list" id="dashboard-budgets" aria-live="polite">
-        <p class="muted">Loading budget status&hellip;</p>
-      </div>
-    </section>
+    <div class="bento">
+      <section class="card card--totals">
+        <h2 class="card-title">Spending this month</h2>
+        <div class="totals" id="dashboard-totals" aria-live="polite">
+          <p class="muted">Loading this month&rsquo;s totals&hellip;</p>
+        </div>
+      </section>
+      <section class="card card--breakdown">
+        <h2 class="card-title">Category breakdown</h2>
+        <div class="breakdown" id="dashboard-breakdown" aria-live="polite">
+          <p class="muted">Loading category breakdown&hellip;</p>
+        </div>
+      </section>
+      <section class="card card--budgets">
+        <h2 class="card-title">Budget status</h2>
+        <div class="budget-list" id="dashboard-budgets" aria-live="polite">
+          <p class="muted">Loading budget status&hellip;</p>
+        </div>
+      </section>
+      <section class="card card--bills">
+        <h2 class="card-title">Upcoming bills</h2>
+        <div class="bills" id="dashboard-bills" aria-live="polite">
+          <p class="muted">Loading upcoming bills&hellip;</p>
+        </div>
+      </section>
+      <section class="card card--recent">
+        <h2 class="card-title">Recent expenses</h2>
+        <div class="recent" id="dashboard-recent" aria-live="polite">
+          <p class="muted">Loading recent expenses&hellip;</p>
+        </div>
+      </section>
+    </div>
   </main>
   <script src="/static/app.js"></script>
 </body>

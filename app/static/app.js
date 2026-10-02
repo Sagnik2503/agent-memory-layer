@@ -86,12 +86,14 @@
     return el("span", "pill pill-" + code.toLowerCase(), code);
   }
 
+  function renderEmptyState(container, message) {
+    container.replaceChildren(el("p", "muted empty-state", message));
+  }
+
   function renderTotals(container, totals, label) {
     var currencies = Object.keys(totals);
     if (!currencies.length) {
-      container.replaceChildren(
-        el("p", "muted empty-state", "No spending recorded for " + label + ".")
-      );
+      renderEmptyState(container, "No spending recorded for " + label + ".");
       return;
     }
 
@@ -108,13 +110,13 @@
 
   var BUDGET_WARNING_PERCENT = 80;
 
-  function budgetLabel(category) {
+  function categoryLabel(category) {
     return category ? category.replace(/_/g, " ") : "Overall";
   }
 
   function renderBudgetStatus(container, statuses) {
     if (!statuses.length) {
-      container.replaceChildren(el("p", "muted empty-state", "No budgets set."));
+      renderEmptyState(container, "No budgets set.");
       return;
     }
 
@@ -124,7 +126,7 @@
       var isOver = !!status.is_over_budget;
       var isWarn = !isOver && percent >= BUDGET_WARNING_PERCENT;
       var currency = status.currency;
-      var label = budgetLabel(status.category);
+      var label = categoryLabel(status.category);
 
       var item = el(
         "div",
@@ -179,6 +181,119 @@
       item.append(head, track, foot);
       container.append(item);
     });
+  }
+
+  function renderCategoryBreakdown(container, entries, label) {
+    if (!entries.length) {
+      renderEmptyState(container, "No spending recorded for " + label + ".");
+      return;
+    }
+
+    // Entries arrive grouped per currency (percentages are shares within one
+    // currency), so keep currencies apart and give each group its own pill.
+    var codes = [];
+    var byCode = {};
+    entries.forEach(function (entry) {
+      var code = entry.currency || "INR";
+      if (!byCode[code]) {
+        byCode[code] = [];
+        codes.push(code);
+      }
+      byCode[code].push(entry);
+    });
+
+    container.replaceChildren();
+    codes.forEach(function (code) {
+      var group = el("div", "breakdown-group");
+      group.append(currencyPill(code));
+      byCode[code].forEach(function (entry) {
+        var row = el("div", "breakdown-row");
+
+        var head = el("div", "breakdown-head");
+        head.append(
+          el("span", "breakdown-label", categoryLabel(entry.category)),
+          el(
+            "span",
+            "breakdown-figures mono",
+            formatMoney(entry.amount, code) +
+              " · " +
+              entry.percentage.toFixed(1) +
+              "%"
+          )
+        );
+
+        var track = el("div", "breakdown-track");
+        var fill = el("div", "breakdown-fill");
+        fill.style.width = Math.min(entry.percentage, 100) + "%";
+        track.append(fill);
+
+        row.append(head, track);
+        group.append(row);
+      });
+      container.append(group);
+    });
+  }
+
+  function renderUpcomingBills(container, bills) {
+    if (!bills.length) {
+      renderEmptyState(container, "No bills due soon.");
+      return;
+    }
+
+    container.replaceChildren();
+    bills.forEach(function (bill) {
+      var item = el("div", "bill" + (bill.overdue ? " bill-overdue" : ""));
+
+      var head = el("div", "bill-head");
+      head.append(el("span", "bill-merchant", bill.merchant || "—"));
+      var amount = el("span", "bill-amount");
+      amount.append(
+        document.createTextNode(formatMoney(bill.amount, bill.currency)),
+        currencyPill(bill.currency)
+      );
+      head.append(amount);
+
+      var foot = el("div", "bill-foot");
+      foot.append(
+        el(
+          "span",
+          "bill-due",
+          (bill.overdue ? "Was due " : "Due ") +
+            formatDay(bill.due_date) +
+            (bill.frequency ? " · " + bill.frequency : "")
+        )
+      );
+      if (bill.overdue) {
+        foot.append(el("span", "badge badge-overdue", "Overdue"));
+      }
+
+      item.append(head, foot);
+      container.append(item);
+    });
+  }
+
+  function renderRecentExpenses(container, items, label) {
+    if (!items.length) {
+      renderEmptyState(container, "No expenses recorded for " + label + ".");
+      return;
+    }
+
+    var list = el("ul", "recent-list");
+    items.forEach(function (item) {
+      var row = el("li", "recent-item");
+      row.append(
+        el("span", "recent-date mono", formatDay(item.date)),
+        el("span", "recent-merchant", item.merchant || "—"),
+        el(
+          "span",
+          "recent-amount mono",
+          formatMoney(item.amount, item.currency)
+        ),
+        currencyPill(item.currency)
+      );
+      list.append(row);
+    });
+    container.replaceChildren(list);
   }
 
   function renderExpenseList(container, items, label) {
@@ -267,23 +382,39 @@
 
   function loadDashboard() {
     var totalsNode = document.getElementById("dashboard-totals");
+    var breakdownNode = document.getElementById("dashboard-breakdown");
     var budgetsNode = document.getElementById("dashboard-budgets");
-    if (!totalsNode || !budgetsNode) return;
+    var billsNode = document.getElementById("dashboard-bills");
+    var recentNode = document.getElementById("dashboard-recent");
+    if (!totalsNode || !breakdownNode || !budgetsNode || !billsNode || !recentNode) {
+      return;
+    }
 
     fetchMonthData("/api/dashboard")
       .then(function (data) {
         renderMonthLabels();
-        renderTotals(
-          totalsNode,
-          data.totals_by_currency || {},
-          monthLabel(data.month)
+        var label = monthLabel(data.month);
+        renderTotals(totalsNode, data.totals_by_currency || {}, label);
+        renderCategoryBreakdown(
+          breakdownNode,
+          data.category_breakdown || [],
+          label
         );
         renderBudgetStatus(budgetsNode, data.budget_statuses || []);
+        renderUpcomingBills(billsNode, data.upcoming_bills || []);
+        renderRecentExpenses(recentNode, data.recent_expenses || [], label);
       })
       .catch(function (error) {
         var message = "Couldn't load the dashboard. " + error.message;
-        totalsNode.replaceChildren(el("p", "error", message));
-        budgetsNode.replaceChildren(el("p", "error", message));
+        [
+          totalsNode,
+          breakdownNode,
+          budgetsNode,
+          billsNode,
+          recentNode,
+        ].forEach(function (node) {
+          node.replaceChildren(el("p", "error", message));
+        });
       });
   }
 

@@ -6,7 +6,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from app.agent.state import BudgetInput, ChatRequest, ChatResponse
-from app.analytics import get_budget_status
+from app.analytics import get_budget_status, get_category_breakdown
 from langchain_core.messages import HumanMessage
 from app.agent.graph import create_agent_graph
 from app.config import DEFAULT_USER_ID
@@ -15,7 +15,9 @@ from app.db.migrations import migrate_add_user_id
 from app.db.repository import (
     get_budgets_for_period,
     get_expenses_for_month,
+    get_subscriptions_due_within,
     to_expense_results,
+    upcoming_bill,
 )
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -77,13 +79,84 @@ def _rows_for_month(month: str):
     return get_expenses_for_month(DEFAULT_USER_ID, year, month_num)
 
 
+def _group_by_currency(rows) -> dict[str, list]:
+    """Group Expense rows by currency, defaulting a null currency to INR."""
+    groups: dict[str, list] = {}
+    for row in rows:
+        groups.setdefault(row.currency or "INR", []).append(row)
+    return groups
+
+
 def _totals_by_currency(rows) -> dict[str, float]:
     """Group amounts by currency. Currencies are never summed together."""
     totals: dict[str, float] = {}
-    for row in rows:
-        code = row.currency or "INR"
-        totals[code] = totals.get(code, 0.0) + row.amount
+    for code, group in _group_by_currency(rows).items():
+        totals[code] = sum(row.amount for row in group)
     return totals
+
+
+def _expense_item(row) -> dict:
+    """Display fields for one Expense row.
+
+    Shared by GET /api/expenses and the dashboard's recent list so both
+    surfaces render identical data.
+    """
+    return {
+        "date": row.date.isoformat() if row.date else None,
+        "merchant": row.merchant,
+        "category": row.category,
+        "subcategory": row.subcategory,
+        "amount": row.amount,
+        "currency": row.currency,
+    }
+
+
+RECENT_EXPENSES_LIMIT = 5
+
+
+def _recent_expenses(rows) -> list[dict]:
+    """The newest Expenses of the requested month, capped at
+    RECENT_EXPENSES_LIMIT. Rows arrive newest-first from the repository."""
+    return [_expense_item(row) for row in rows[:RECENT_EXPENSES_LIMIT]]
+
+
+def _category_breakdown(rows) -> list[dict]:
+    """Category breakdown for the month, measured per currency.
+
+    `analytics.get_category_breakdown` sums amounts within the list it is
+    given, so it runs once per currency group — the per-currency rule means
+    amounts (and the percentages derived from them) are never combined across
+    currencies. Labels come from the ExpenseCategory vocabulary through
+    `to_expense_results`, so only canonical values can appear.
+    """
+    entries: list[dict] = []
+    groups = _group_by_currency(rows)
+    for code in sorted(groups):
+        for item in get_category_breakdown(to_expense_results(groups[code])):
+            entries.append({**item.model_dump(), "currency": code})
+    return entries
+
+
+UPCOMING_BILLS_DAYS = 7
+
+
+def _upcoming_bills() -> list[dict]:
+    """Subscriptions due within UPCOMING_BILLS_DAYS, overdue ones included and
+    marked.
+
+    Bills are anchored to today rather than the requested month: a
+    Subscription's next due date is a point in time and the card answers
+    "what is about to hit my account". The window and the shared
+    `upcoming_bill` shape match the agent's get_upcoming_bills_tool, so the
+    dashboard and chat never disagree.
+    """
+    today = date.today()
+    return [
+        upcoming_bill(s, today)
+        for s in get_subscriptions_due_within(
+            DEFAULT_USER_ID, within_days=UPCOMING_BILLS_DAYS
+        )
+    ]
 
 
 BUDGET_CURRENCY = "INR"
@@ -118,21 +191,9 @@ def _budget_statuses(month: str) -> list[dict]:
 def list_expenses(month: str | None = None):
     month = _parse_month(month)
     rows = _rows_for_month(month)
-    items = []
-    for row in rows:
-        items.append(
-            {
-                "date": row.date.isoformat() if row.date else None,
-                "merchant": row.merchant,
-                "category": row.category,
-                "subcategory": row.subcategory,
-                "amount": row.amount,
-                "currency": row.currency,
-            }
-        )
     return {
         "month": month,
-        "items": items,
+        "items": [_expense_item(row) for row in rows],
         "totals_by_currency": _totals_by_currency(rows),
     }
 
@@ -145,7 +206,10 @@ def dashboard_summary(month: str | None = None):
     return {
         "month": month,
         "totals_by_currency": _totals_by_currency(rows),
+        "category_breakdown": _category_breakdown(rows),
         "budget_statuses": _budget_statuses(month),
+        "upcoming_bills": _upcoming_bills(),
+        "recent_expenses": _recent_expenses(rows),
     }
 
 

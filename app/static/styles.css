@@ -214,6 +214,30 @@ h1 {
   margin: 0 0 24px;
 }
 
+.bento {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 24px;
+}
+
+.bento .card {
+  margin: 0;
+}
+
+.card--totals {
+  grid-column: span 12;
+}
+
+.card--breakdown,
+.card--bills {
+  grid-column: span 5;
+}
+
+.card--budgets,
+.card--recent {
+  grid-column: span 7;
+}
+
 .card-title {
   margin: 0 0 18px;
   color: var(--muted);
@@ -303,6 +327,165 @@ h1 {
   flex: 1 0 100%;
 }
 
+.breakdown-group {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.breakdown-group + .breakdown-group {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.breakdown-group > .pill {
+  align-self: flex-start;
+}
+
+.breakdown-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.breakdown-label {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.breakdown-figures {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.breakdown-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--pill-bg);
+  overflow: hidden;
+}
+
+.breakdown-fill {
+  height: 100%;
+  background: var(--ink);
+}
+
+.bills {
+  display: flex;
+  flex-direction: column;
+}
+
+.bill {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.bill:first-child {
+  padding-top: 0;
+}
+
+.bill:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.bill-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bill-merchant {
+  font-weight: 600;
+}
+
+.bill-amount {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.bill-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.bill-due {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.85rem;
+}
+
+.bill-overdue .bill-due {
+  color: var(--error-ink);
+}
+
+.badge {
+  display: inline-block;
+  border-radius: 9999px;
+  padding: 2px 10px;
+  background: var(--pill-bg);
+  color: var(--pill-ink);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.badge-overdue {
+  background: #fdebec;
+  color: var(--error-ink);
+}
+
+.recent-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.recent-item {
+  display: grid;
+  grid-template-columns: 6ch 1fr auto auto;
+  align-items: baseline;
+  gap: 14px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.recent-item:first-child {
+  padding-top: 0;
+}
+
+.recent-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.recent-date {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.recent-merchant {
+  font-weight: 600;
+}
+
+.recent-amount {
+  text-align: right;
+}
+
 .pill-inr {
   background: var(--pill-inr-bg);
   color: var(--pill-inr-ink);
@@ -388,6 +571,14 @@ h1 {
 
   .page {
     padding: 40px 20px 72px;
+  }
+
+  .bento {
+    grid-template-columns: 1fr;
+  }
+
+  .bento .card {
+    grid-column: auto;
   }
 
   .expense-list {
