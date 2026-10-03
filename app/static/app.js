@@ -387,14 +387,20 @@
 
   var FILTER_DEBOUNCE_MS = 250;
   var filterTimer = null;
-  var expenseRequest = 0;
+  var expenseRequestToken = 0;
+  // The filter controls are static markup, present before this script runs,
+  // so one lookup serves both the readers and the listeners below.
+  var categoryFilter = document.getElementById("filter-category");
+  var merchantFilter = document.getElementById("filter-merchant");
 
   function expenseFilters() {
-    var category = document.getElementById("filter-category");
-    var merchant = document.getElementById("filter-merchant");
     var filters = {};
-    if (category && category.value) filters.category = category.value;
-    if (merchant && merchant.value.trim()) filters.q = merchant.value.trim();
+    if (categoryFilter && categoryFilter.value) {
+      filters.category = categoryFilter.value;
+    }
+    if (merchantFilter && merchantFilter.value.trim()) {
+      filters.q = merchantFilter.value.trim();
+    }
     return filters;
   }
 
@@ -406,10 +412,8 @@
   }
 
   function resetExpenseFilters() {
-    var category = document.getElementById("filter-category");
-    var merchant = document.getElementById("filter-merchant");
-    if (category) category.value = "";
-    if (merchant) merchant.value = "";
+    if (categoryFilter) categoryFilter.value = "";
+    if (merchantFilter) merchantFilter.value = "";
     clearFilterTimer();
   }
 
@@ -430,13 +434,13 @@
 
     // Filter changes and month arrows both fetch; only the newest request
     // may render, or a slow filtered response could land on another month.
-    var token = ++expenseRequest;
+    var token = ++expenseRequestToken;
     var filters = expenseFilters();
     var filtersActive = Object.keys(filters).length > 0;
 
     fetchMonthData("/api/expenses", filters)
       .then(function (data) {
-        if (token !== expenseRequest) return;
+        if (token !== expenseRequestToken) return;
         var label = monthLabel(data.month);
         renderMonthLabels();
         // Totals describe the rows on screen; when a filter matches nothing
@@ -445,11 +449,18 @@
           totalsNode.replaceChildren();
         } else {
           renderTotals(totalsNode, data.totals_by_currency || {}, label);
+          if (filtersActive) {
+            // Mark the amounts as a filtered subtotal so a filtered view
+            // can't be read as the whole month's spending.
+            totalsNode.prepend(
+              el("span", "total-scope", "Matching your filters")
+            );
+          }
         }
         renderExpenseList(expenseListNode, data.items, label, filtersActive);
       })
       .catch(function (error) {
-        if (token !== expenseRequest) return;
+        if (token !== expenseRequestToken) return;
         totalsNode.replaceChildren();
         expenseListNode.replaceChildren(
           el("p", "error", "Couldn't load expenses. " + error.message)
@@ -457,8 +468,6 @@
       });
   }
 
-  var categoryFilter = document.getElementById("filter-category");
-  var merchantFilter = document.getElementById("filter-merchant");
   if (categoryFilter) {
     categoryFilter.addEventListener("change", reloadExpenses);
   }

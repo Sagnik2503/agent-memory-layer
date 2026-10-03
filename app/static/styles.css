@@ -248,6 +248,12 @@ select.filter-control {
   font-variant-numeric: tabular-nums;
 }
 
+.total-scope {
+  align-self: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
 .pill {
   display: inline-block;
   border-radius: 9999px;
