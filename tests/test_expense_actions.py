@@ -44,6 +44,35 @@ def test_expense_rows_offer_edit_and_delete_chat_actions(client):
     assert "chat-input" in text
 
 
+def _style_blocks(css, selector):
+    """Every declaration block whose selector is exactly `selector`."""
+    return re.findall(re.escape(selector) + r"\s*\{([^}]*)\}", css)
+
+
+def test_row_action_buttons_are_visible_without_hovering(client):
+    """The Actions buttons must be usable at rest.
+
+    They were hidden behind a hover-only reveal (opacity: 0 until tr:hover)
+    and painted --surface on a --surface card, so a resting row showed no
+    buttons at all and a hovered row showed white-on-white ones.
+    """
+    css = client.get("/static/styles.css")
+    assert css.status_code == 200
+    text = css.text
+
+    blocks = _style_blocks(text, ".row-actions")
+    assert blocks, ".row-actions rule missing"
+    for block in blocks:
+        assert "opacity: 0" not in block, "row actions hidden until hover"
+
+    action = _style_blocks(text, ".row-action")
+    assert action, ".row-action rule missing"
+    # A white button face on the white .expense-list card is invisible.
+    assert "background: var(--surface)" not in action[0], (
+        "row action is white-on-white against the expense card"
+    )
+
+
 def test_row_deep_link_instruction_identifies_the_expense(client):
     """The prefilled instruction must pin down one Expense for the agent:
     every field it names comes from the GET /api/expenses item contract."""
