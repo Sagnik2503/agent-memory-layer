@@ -296,6 +296,48 @@
     container.replaceChildren(list);
   }
 
+  // One Expense described the way the agent resolves it: merchant, amount,
+  // currency and date are get_expenses_tool's filters; the id breaks ties.
+  function describeExpense(item) {
+    var code = item.currency || "INR";
+    return (
+      (item.merchant || "an unnamed merchant") +
+      " expense for " +
+      formatMoney(item.amount, code) +
+      " " +
+      code +
+      " on " +
+      (item.date || "an undated day") +
+      " (" +
+      (item.category || "uncategorised") +
+      (item.subcategory ? "/" + item.subcategory : "") +
+      ", expense #" +
+      item.id +
+      ")"
+    );
+  }
+
+  function editInstruction(item) {
+    return "Edit the " + describeExpense(item) + ": ";
+  }
+
+  function deleteInstruction(item) {
+    return "Delete the " + describeExpense(item) + ".";
+  }
+
+  function rowAction(label, instruction, className) {
+    var button = el(
+      "button",
+      "row-action" + (className ? " " + className : ""),
+      label
+    );
+    button.type = "button";
+    button.addEventListener("click", function () {
+      openChatWithPrefill(instruction);
+    });
+    return button;
+  }
+
   function renderExpenseList(container, items, label, filtersActive) {
     if (!items.length) {
       if (filtersActive) {
@@ -321,11 +363,16 @@
 
     var table = el("table", "expense-table");
     var headRow = el("tr");
-    ["Date", "Merchant", "Category", "Amount", "Currency"].forEach(function (name) {
-      var cell = el("th", null, name);
-      if (name === "Amount") cell.classList.add("align-right");
-      headRow.append(cell);
-    });
+    ["Date", "Merchant", "Category", "Amount", "Currency", "Actions"].forEach(
+      function (name) {
+        var cell = el("th", null, name);
+        // Right-align the figures and the actions above their right-set cells.
+        if (name === "Amount" || name === "Actions") {
+          cell.classList.add("align-right");
+        }
+        headRow.append(cell);
+      }
+    );
     var head = el("thead");
     head.append(headRow);
     table.append(head);
@@ -351,6 +398,19 @@
       var currencyCell = el("td");
       currencyCell.append(currencyPill(item.currency));
       row.append(currencyCell);
+
+      var actionsCell = el("td", "row-actions-cell");
+      var actions = el("div", "row-actions");
+      actions.append(
+        rowAction("Edit in chat", editInstruction(item)),
+        rowAction(
+          "Delete in chat",
+          deleteInstruction(item),
+          "row-action--delete"
+        )
+      );
+      actionsCell.append(actions);
+      row.append(actionsCell);
 
       body.append(row);
     });
@@ -610,6 +670,9 @@
     if (!panel || !toggle) return;
     panel.hidden = !open;
     toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    // The panel is a fixed rail: hand the page its width back so the row
+    // deep-links never sit underneath it.
+    document.body.classList.toggle("chat-open", open);
     if (!moveFocus) return;
     if (open) {
       var input = document.getElementById("chat-input");
@@ -619,12 +682,17 @@
     }
   }
 
+  // One place changes the panel state *and* remembers it, so opening from
+  // the FAB, closing, and the row deep-links can't drift apart.
+  function setChatOpen(open, moveFocus) {
+    applyChatOpenState(open, moveFocus);
+    chatStorageSet(CHAT_OPEN_KEY, open ? "1" : "0");
+  }
+
   function toggleChat() {
     var panel = document.getElementById("chat-panel");
     if (!panel) return;
-    var open = panel.hidden;
-    applyChatOpenState(open, true);
-    chatStorageSet(CHAT_OPEN_KEY, open ? "1" : "0");
+    setChatOpen(panel.hidden, true);
   }
 
   function sendChatMessage(event) {
@@ -681,8 +749,15 @@
   }
 
   function closeChat() {
-    applyChatOpenState(false, true);
-    chatStorageSet(CHAT_OPEN_KEY, "0");
+    setChatOpen(false, true);
+  }
+
+  function openChatWithPrefill(instruction) {
+    var input = document.getElementById("chat-input");
+    setChatOpen(true, true);
+    if (!input) return;
+    input.value = instruction;
+    input.setSelectionRange(instruction.length, instruction.length);
   }
 
   function initChat() {

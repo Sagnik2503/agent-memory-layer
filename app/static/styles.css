@@ -612,6 +612,12 @@ select.filter-control {
   border-bottom: 1px solid var(--line);
 }
 
+/* Out-specifies .expense-table th so a numeric or actions header sits over
+   its right-aligned cells instead of drifting left. */
+.expense-table th.align-right {
+  text-align: right;
+}
+
 .expense-table td {
   padding: 14px 20px;
   border-bottom: 1px solid var(--line-soft);
@@ -645,6 +651,59 @@ select.filter-control {
   display: block;
   color: var(--muted);
   font-size: 0.82rem;
+}
+
+.row-actions-cell {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.row-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.expense-table tbody tr:hover .row-actions,
+.row-actions:focus-within {
+  opacity: 1;
+}
+
+.row-action {
+  appearance: none;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 0.82rem;
+  line-height: 1.4;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.row-action:hover {
+  border-color: var(--muted);
+}
+
+.row-action:active {
+  transform: scale(0.98);
+}
+
+.row-action:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.row-action--delete {
+  color: var(--error-ink);
+}
+
+.row-action--delete:hover {
+  border-color: var(--error-ink);
 }
 
 .error {
@@ -892,6 +951,22 @@ select.filter-control {
   .chat-fab {
     right: 16px;
     bottom: 16px;
+  }
+}
+
+@media (min-width: 721px) {
+  body.chat-open {
+    padding-right: 380px;
+  }
+
+  body.chat-open .expense-list {
+    overflow-x: auto;
+  }
+}
+
+@media (hover: none) {
+  .row-actions {
+    opacity: 1;
   }
 }
 
